@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { trackHistoryViewed } from "@/analytics/track";
 import { EmojiChip } from "@/components/ui/primitives";
 import { DAY_NARRATIVES } from "@/data/days";
 import { useCompletedGoalCount } from "@/store/hooks";
@@ -18,11 +19,10 @@ export default function HistoryPage() {
   const completedCount = useCompletedGoalCount();
   const goalsByDay = usePrototypeStore((s) => s.goalsByDay);
   const worldName = usePrototypeStore((s) => s.profile.worldName);
-  const logEvent = usePrototypeStore((s) => s.logEvent);
 
   useEffect(() => {
-    logEvent("history_viewed", { day: currentDay });
-  }, [currentDay, logEvent]);
+    trackHistoryViewed({ day: currentDay });
+  }, [currentDay]);
 
   const days = DAY_NARRATIVES.filter((n) => n.day <= currentDay)
     .slice()

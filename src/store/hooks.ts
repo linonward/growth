@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo } from "react";
 
+import { initAnalytics } from "@/analytics/client";
+import { getParticipantId } from "@/analytics/participant";
 import { ENERGY_PER_GOAL, MAX_TOTAL_ENERGY } from "@/domain/constants";
 import { energyFromCompletedGoals, getGrowthState } from "@/domain/growth";
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
-import type { AnalyticsEvent, DailyGoal, GrowthState } from "@/domain/types";
+import type { DailyGoal, GrowthState } from "@/domain/types";
 import { adoptPersistedEvents, usePrototypeStore } from "@/store/prototype-store";
 
 /** Stable empty array so selectors never hand React a fresh reference. */
@@ -44,6 +46,14 @@ export function useHydrateStore(): boolean {
       const store = usePrototypeStore.getState();
 
       adoptPersistedEvents();
+      // Establish the anonymous identity first, and unconditionally: it must be
+      // stable whether or not PostHog happens to be configured, and it is the
+      // attribution key in the offline export.
+      getParticipantId();
+      // PostHog is ~50 KB, so it loads after hydration rather than blocking the
+      // first paint. Without a key it resolves to null and every tracker is a
+      // no-op; the local event log keeps working either way.
+      void initAnalytics();
 
       store.setHydrated(true);
       store.syncDay();
@@ -150,24 +160,4 @@ export function useCategoryCounts(): Record<string, number> {
     }
     return counts;
   }, [goalsByDay]);
-}
-
-/**
- * Fire a single analytics event per mount of a screen.
- *
- * `logEvent` reads the current day from the store, so `day` is only used to
- * decide whether the effect should re-run.
- */
-export function useScreenEvent(
-  name: AnalyticsEvent["name"],
-  props?: AnalyticsEvent["props"],
-): void {
-  const day = usePrototypeStore((s) => s.currentDay);
-  const push = usePrototypeStore((s) => s.logEvent);
-
-  const propsKey = props ? JSON.stringify(props) : "";
-  useEffect(() => {
-    push(name, props);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, day, propsKey, push]);
 }

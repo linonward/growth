@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { trackPlantViewed } from "@/analytics/track";
 import {
   CATEGORY_ICON,
   IconChevronRight,
@@ -58,11 +59,10 @@ export default function PlantPage() {
   const todayEnergy = useTodayEnergy();
   const day = usePrototypeStore((s) => s.currentDay);
   const counts = useCategoryCounts();
-  const logEvent = usePrototypeStore((s) => s.logEvent);
 
   useEffect(() => {
-    logEvent("plant_viewed", { day, state: growth.plantState });
-  }, [day, growth.plantState, logEvent]);
+    trackPlantViewed({ day, plantState: growth.plantState });
+  }, [day, growth.plantState]);
 
   const state = growth.plantState;
   const stateIndex = PLANT_STATE_ORDER.indexOf(state);

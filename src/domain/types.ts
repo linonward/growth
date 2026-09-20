@@ -107,24 +107,36 @@ export interface RewardMoment {
   todayEnergyAfter: number;
 }
 
-export type AnalyticsEventName =
-  | "prototype_started"
-  | "app_opened"
-  | "goals_viewed"
-  | "goal_selected"
-  | "goal_completed"
-  | "reward_viewed"
-  | "world_viewed"
-  | "pet_viewed"
-  | "plant_viewed"
-  | "history_viewed"
-  | "initiative_self"
-  | "initiative_prompted"
-  | "milestone_viewed"
-  | "day7_completed"
-  | "continue_requested"
-  | "day_advanced"
-  | "prototype_reset";
+/**
+ * The Phase 0 event schema.
+ *
+ * Deliberately small and hypothesis-driven: each event answers one of the six
+ * questions the experiment is actually asking (who came, did they return, how
+ * many goals, self- or parent-prompted, who reached Day 7, did they ask to
+ * continue). Do not add an event per button — extend an existing event's
+ * properties instead, the way `goal_completed` carries `goal_type`.
+ *
+ * Declared as a runtime array so tests and tooling can assert against exactly
+ * the same list the types are derived from.
+ */
+export const ANALYTICS_EVENT_NAMES = [
+  "experiment_started",
+  "session_started",
+  "world_viewed",
+  "goal_selected",
+  "goal_completed",
+  "reward_viewed",
+  "pet_viewed",
+  "plant_viewed",
+  "history_viewed",
+  "initiative_answered",
+  "milestone_viewed",
+  "day_completed",
+  "day7_completed",
+  "continue_requested",
+] as const;
+
+export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
 
 export interface AnalyticsEvent {
   id: string;

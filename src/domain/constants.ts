@@ -27,6 +27,12 @@ export const STORAGE_KEY = "growth-world-prototype-v1";
  */
 export const ANALYTICS_KEY = "growth-world-analytics-v1";
 
+/**
+ * Anonymous participant UUID. Its own key so it survives a prototype reset —
+ * a reset clears progress, not who the participant is.
+ */
+export const PARTICIPANT_KEY = "growth-world-participant-v1";
+
 /** Force any day value into the 1..7 experiment window. */
 export function clampDay(day: number): number {
   if (!Number.isFinite(day)) return 1;

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { trackWorldViewed } from "@/analytics/track";
 import { EnergyPanel } from "@/components/growth/EnergyPanel";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
 import { IconChevronRight, IconSprout, IconSun } from "@/components/ui/icons";
@@ -33,13 +34,12 @@ export default function WorldPage() {
   const petName = usePrototypeStore((s) => s.profile.petName);
   const petSpecies = usePrototypeStore((s) => s.profile.petSpecies);
   const pendingInitiativeDay = usePrototypeStore((s) => s.pendingInitiativeDay);
-  const logEvent = usePrototypeStore((s) => s.logEvent);
 
   const day = growth.currentDay;
 
   useEffect(() => {
-    logEvent("world_viewed", { day });
-  }, [day, logEvent]);
+    trackWorldViewed({ day });
+  }, [day]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

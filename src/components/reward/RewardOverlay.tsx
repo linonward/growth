@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { trackRewardViewed } from "@/analytics/track";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
 import { IconSparkle, IconWorldDrop } from "@/components/ui/icons";
 import { EmojiChip, ProgressBar } from "@/components/ui/primitives";
@@ -40,7 +41,6 @@ export function RewardOverlay() {
 function RewardSequence({ reward }: { reward: RewardMoment }) {
   const router = useRouter();
   const dismissReward = usePrototypeStore((s) => s.dismissReward);
-  const logEvent = usePrototypeStore((s) => s.logEvent);
   const markMilestoneSeen = usePrototypeStore((s) => s.markMilestoneSeen);
   const todayEnergy = useTodayEnergy();
   const milestone = useMilestone();
@@ -49,13 +49,14 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
 
   // Record that the feedback was actually shown, for the analytics export.
   useEffect(() => {
-    logEvent("reward_viewed", {
-      goalId: reward.goalId,
+    trackRewardViewed({
+      day: reward.day,
+      goalType: reward.templateId,
       isMajor: reward.change.isMajor,
       target: reward.change.target,
     });
     if (reward.milestone) markMilestoneSeen(reward.milestone.id);
-  }, [reward, logEvent, markMilestoneSeen]);
+  }, [reward, markMilestoneSeen]);
 
   useEffect(() => {
     if (stage === "confirm") {

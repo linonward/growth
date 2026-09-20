@@ -3,14 +3,27 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { appendEvent, createEvent } from "@/analytics/events";
+import { appendEvent } from "@/analytics/events";
 import { buildExportPayload, type ExperimentExport } from "@/analytics/export";
+import { getParticipantId } from "@/analytics/participant";
 import {
   flushEvents,
   installFlushListeners,
   persistEvents,
   readEvents,
 } from "@/analytics/persistence";
+import {
+  registerEventSink,
+  trackContinueRequested,
+  trackDay7Completed,
+  trackDayCompleted,
+  trackExperimentStarted,
+  trackGoalCompleted,
+  trackGoalSelected,
+  trackInitiativeAnswered,
+  trackMilestoneViewed,
+  trackSessionStarted,
+} from "@/analytics/track";
 import { GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
 import {
   DEFAULT_PET_NAME,
@@ -29,7 +42,6 @@ import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import { describeRewardChange, detectDayMilestone } from "@/domain/reward";
 import type {
   AnalyticsEvent,
-  AnalyticsEventName,
   DailyCheckIn,
   DailyGoal,
   GoalTemplate,
@@ -88,7 +100,6 @@ export interface PrototypeStoreState {
   dismissDayStart: () => void;
   requestContinue: () => void;
   markMilestoneSeen: (id: string) => void;
-  logEvent: (name: AnalyticsEventName, props?: AnalyticsEvent["props"]) => void;
   buildExport: () => ExperimentExport;
   // debug
   debugSetDay: (day: number) => void;
@@ -236,9 +247,10 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           lastSeenDay: 1,
           pendingDayStart: null,
         }));
-        get().logEvent("prototype_started", {
-          worldName: worldName?.trim() || DEFAULT_WORLD_NAME,
+        trackExperimentStarted({
+          day: 1,
           petSpecies: petSpecies ?? "fox",
+          worldNameSet: Boolean(worldName?.trim()),
         });
       },
 
@@ -265,7 +277,7 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         const goals = makeGoals(day, templateIds);
         set({ goalsByDay: { ...state.goalsByDay, [day]: goals } });
         for (const goal of goals) {
-          get().logEvent("goal_selected", { day, templateId: goal.templateId });
+          trackGoalSelected({ day, goalType: goal.templateId });
         }
       },
 
@@ -331,24 +343,32 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           goalsByDay: { ...state.goalsByDay, [day]: nextGoals },
           activeReward: reward,
           pendingInitiativeDay: shouldAskInitiative ? day : state.pendingInitiativeDay,
-          events: appendEvent(
-            state.events,
-            createEvent("goal_completed", day, {
-              templateId: goal.templateId,
-              target: change.target,
-              totalEnergyAfter: reward.totalEnergyAfter,
-              isMajor: change.isMajor,
-            }),
-          ),
         });
 
+        const growthAfter = getGrowthState(
+          day,
+          reward.totalEnergyAfter,
+          todayEnergyAfter,
+        );
+        trackGoalCompleted({
+          day,
+          goalType: goal.templateId,
+          energyEarned: ENERGY_PER_GOAL,
+          petState: growthAfter.petState,
+          plantState: growthAfter.plantState,
+          totalEnergy: reward.totalEnergyAfter,
+        });
         if (milestone) {
-          set((s) => ({
-            events: appendEvent(
-              s.events,
-              createEvent("milestone_viewed", day, { id: milestone.id }),
-            ),
-          }));
+          trackMilestoneViewed({ day, milestoneId: milestone.id });
+        }
+        // Day-level completion is its own event: it is the retention signal,
+        // separate from any individual goal.
+        if (completedBefore + 1 === nextGoals.length) {
+          trackDayCompleted({
+            day,
+            goalsCompleted: nextGoals.length,
+            energyEarned: todayEnergyAfter,
+          });
         }
       },
 
@@ -364,16 +384,12 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
       dismissFinale: () => {
         const state = get();
         if (!state.day7Completed) {
-          set((s) => ({
-            activeFinale: false,
-            day7Completed: true,
-            events: appendEvent(
-              s.events,
-              createEvent("day7_completed", s.currentDay, {
-                totalEnergy: selectTotalEnergy(s),
-              }),
-            ),
-          }));
+          const current = get();
+          set({ activeFinale: false, day7Completed: true });
+          trackDay7Completed({
+            day: current.currentDay,
+            totalEnergy: selectTotalEnergy(current),
+          });
         } else {
           set({ activeFinale: false });
         }
@@ -402,15 +418,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
             checkIns,
             pendingInitiativeDay:
               state.pendingInitiativeDay === day ? null : state.pendingInitiativeDay,
-            events: appendEvent(
-              state.events,
-              createEvent(
-                value === "self" ? "initiative_self" : "initiative_prompted",
-                day,
-              ),
-            ),
           };
         });
+        trackInitiativeAnswered({ day, initiative: value });
       },
 
       recordDayOpened: (day) => {
@@ -422,11 +432,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
                 ...state.checkIns,
                 { day, openedAt: new Date().toISOString() } as DailyCheckIn,
               ];
-          return {
-            checkIns,
-            events: appendEvent(state.events, createEvent("app_opened", day)),
-          };
+          return { checkIns };
         });
+        trackSessionStarted({ day });
       },
 
       syncDay: (now = new Date()) => {
@@ -449,23 +457,18 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           lastSeenDay: next,
           // Day 2+ gets the gentle "something changed overnight" welcome.
           pendingDayStart: rolled && next > 1 ? next : null,
-          events: appendEvent(
-            state.events,
-            createEvent("day_advanced", next, { from: state.lastSeenDay }),
-          ),
         });
       },
 
       dismissDayStart: () => set({ pendingDayStart: null }),
 
       requestContinue: () => {
-        set((state) => ({
-          continueRequested: true,
-          events: appendEvent(
-            state.events,
-            createEvent("continue_requested", state.currentDay),
-          ),
-        }));
+        const state = get();
+        set({ continueRequested: true });
+        trackContinueRequested({
+          day: state.currentDay,
+          totalEnergy: selectTotalEnergy(state),
+        });
       },
 
       markMilestoneSeen: (id) => {
@@ -476,15 +479,10 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         );
       },
 
-      logEvent: (name, props) => {
-        set((state) => ({
-          events: appendEvent(state.events, createEvent(name, state.currentDay, props)),
-        }));
-      },
-
       buildExport: () => {
         const state = get();
         return buildExportPayload({
+          participantId: getParticipantId(),
           profile: state.profile,
           goalsByDay: state.goalsByDay,
           checkIns: state.checkIns,
@@ -497,15 +495,11 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
 
       debugSetDay: (day) => {
         const clamped = Math.min(7, Math.max(1, Math.floor(day)));
-        set((state) => ({
+        set({
           dayOverride: clamped,
           currentDay: clamped,
           lastSeenDay: clamped,
-          events: appendEvent(
-            state.events,
-            createEvent("day_advanced", clamped, { debug: true }),
-          ),
-        }));
+        });
       },
 
       debugAdjustEnergy: (delta) => {
@@ -585,10 +579,6 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         set({
           debugEnergyDelta: 180 - energyFromCompletedGoals(completedCount),
           activeFinale: true,
-          events: appendEvent(
-            get().events,
-            createEvent("milestone_viewed", 7, { id: "day7_finale", debug: true }),
-          ),
         });
       },
 
@@ -599,10 +589,12 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         // would be worse than carrying a few extra days of history.
         set((state) => ({
           ...initialPersistedState(),
-          // Keep who they are, but put the world back to Day 1.
+          // Keep who they are, but put the world back to Day 1. The local event
+          // log is deliberately preserved — losing collected data would be
+          // worse than carrying a few extra days of history.
           hasCompletedFirstRun: state.hasCompletedFirstRun,
           profile: { ...state.profile, startedAt: now.toISOString() },
-          events: appendEvent(state.events, createEvent("prototype_reset", 1)),
+          events: state.events,
         }));
       },
     }),
@@ -682,6 +674,15 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
 installFlushListeners();
 usePrototypeStore.subscribe((state, prev) => {
   if (state.events !== prev.events) persistEvents(state.events);
+});
+
+// The trackers own the wire format; this keeps the local log (used by
+// /debug/export and the offline JSON) in step without importing the store from
+// the analytics layer, which would be a cycle.
+registerEventSink((event) => {
+  usePrototypeStore.setState((state) => ({
+    events: appendEvent(state.events, event),
+  }));
 });
 
 /** Load the persisted analytics log into the store. Called once, on hydration. */

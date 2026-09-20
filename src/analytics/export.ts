@@ -1,4 +1,4 @@
-import { countEvents, eventDays } from "@/analytics/events";
+import { countEvents, countInitiative, eventDays } from "@/analytics/events";
 import { ENERGY_PER_GOAL, TOTAL_DAYS } from "@/domain/constants";
 import type {
   AnalyticsEvent,
@@ -39,6 +39,8 @@ export interface ExperimentSummary {
 export interface ExperimentExport {
   schemaVersion: 1;
   exportedAt: string;
+  /** Anonymous participant UUID — the same id PostHog receives. Never a real identity. */
+  participantId: string;
   profile: UserProfile;
   summary: ExperimentSummary;
   days: DayReport[];
@@ -46,6 +48,7 @@ export interface ExperimentExport {
 }
 
 export interface ExportInput {
+  participantId: string;
   profile: UserProfile;
   goalsByDay: Record<number, DailyGoal[]>;
   checkIns: DailyCheckIn[];
@@ -66,7 +69,15 @@ function templatesFor(goals: readonly DailyGoal[]): string[] {
  * continue intent must all be recoverable from this payload.
  */
 export function buildExportPayload(input: ExportInput): ExperimentExport {
-  const { profile, goalsByDay, checkIns, events, day7Completed, totalEnergy } = input;
+  const {
+    participantId,
+    profile,
+    goalsByDay,
+    checkIns,
+    events,
+    day7Completed,
+    totalEnergy,
+  } = input;
 
   const days: DayReport[] = [];
   for (let day = 1; day <= TOTAL_DAYS; day += 1) {
@@ -84,9 +95,9 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
     });
   }
 
-  const openedDays = eventDays(events, "app_opened");
-  const initiativeSelf = countEvents(events, "initiative_self");
-  const initiativePrompted = countEvents(events, "initiative_prompted");
+  const openedDays = eventDays(events, "session_started");
+  const initiativeSelf = countInitiative(events, "self");
+  const initiativePrompted = countInitiative(events, "prompted");
   const answered = initiativeSelf + initiativePrompted;
 
   const dayRetention: Record<string, boolean> = {};
@@ -98,10 +109,11 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
   return {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
+    participantId,
     profile,
     summary: {
       daysActive: openedDays.length,
-      appOpenedCount: countEvents(events, "app_opened"),
+      appOpenedCount: countEvents(events, "session_started"),
       goalsSelected: Object.values(goalsByDay).reduce((n, g) => n + g.length, 0),
       goalsCompleted: Object.values(goalsByDay).reduce(
         (n, g) => n + g.filter((x) => x.completed).length,

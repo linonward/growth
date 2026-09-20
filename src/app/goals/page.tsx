@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { CATEGORY_ICON, IconCheck, IconChevronRight } from "@/components/ui/icons";
 import { IconChip, ProgressBar } from "@/components/ui/primitives";
@@ -35,14 +35,9 @@ export default function GoalsPage() {
   const growth = useGrowth();
   const selectGoals = usePrototypeStore((s) => s.selectGoals);
   const completeGoal = usePrototypeStore((s) => s.completeGoal);
-  const logEvent = usePrototypeStore((s) => s.logEvent);
 
   const [picked, setPicked] = useState<string[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    logEvent("goals_viewed", { day });
-  }, [day, logEvent]);
 
   const started = goals.length > 0;
   const completedCount = goals.filter((g) => g.completed).length;

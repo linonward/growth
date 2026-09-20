@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { trackPetViewed } from "@/analytics/track";
 import { IconChevronRight, IconEdit, IconSparkle } from "@/components/ui/icons";
 import {
   Card,
@@ -48,14 +49,13 @@ export default function PetPage() {
   const petName = usePrototypeStore((s) => s.profile.petName);
   const renamePet = usePrototypeStore((s) => s.renamePet);
   const day = usePrototypeStore((s) => s.currentDay);
-  const logEvent = usePrototypeStore((s) => s.logEvent);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(petName);
 
   useEffect(() => {
-    logEvent("pet_viewed", { day, state: growth.petState });
-  }, [day, growth.petState, logEvent]);
+    trackPetViewed({ day, petState: growth.petState });
+  }, [day, growth.petState]);
 
   const state = growth.petState;
   const stateIndex = PET_STATE_ORDER.indexOf(state);

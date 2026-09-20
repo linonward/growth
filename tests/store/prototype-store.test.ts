@@ -281,7 +281,11 @@ describe("initiative capture", () => {
     const state = usePrototypeStore.getState();
     expect(state.checkIns.find((c) => c.day === 1)?.initiative).toBe("prompted");
     expect(state.pendingInitiativeDay).toBeNull();
-    expect(state.events.some((e) => e.name === "initiative_prompted")).toBe(true);
+    expect(
+      state.events.some(
+        (e) => e.name === "initiative_answered" && e.props?.initiative === "prompted",
+      ),
+    ).toBe(true);
   });
 
   it("does not re-ask on a later day that already has an answer", () => {
@@ -322,6 +326,13 @@ describe("analytics export", () => {
       completed: 2,
       energy: 20,
     });
+  });
+
+  it("attributes the export to the anonymous participant", () => {
+    const payload = usePrototypeStore.getState().buildExport();
+    expect(payload.participantId).toMatch(/^[0-9a-f-]{36}$/i);
+    // Never a real identity.
+    expect(payload.participantId).not.toContain("@");
   });
 
   it("reports a null self-initiated rate when nothing was answered", () => {
@@ -446,11 +457,15 @@ describe("analytics storage is split from game state", () => {
     adoptPersistedEvents();
     expect(usePrototypeStore.getState().events.length).toBe(before);
     expect(
-      usePrototypeStore.getState().events.some((e) => e.name === "initiative_self"),
+      usePrototypeStore
+        .getState()
+        .events.some(
+          (e) => e.name === "initiative_answered" && e.props?.initiative === "self",
+        ),
     ).toBe(true);
   });
 
-  it("keeps the experiment log across a reset, marking the reset", () => {
+  it("keeps the experiment log across a reset", () => {
     const ids = pickGoals(1, 3);
     usePrototypeStore.getState().completeGoal(ids[0]);
     flushEvents();
@@ -460,14 +475,13 @@ describe("analytics storage is split from game state", () => {
     usePrototypeStore.getState().resetPrototype();
     flushEvents();
 
-    const after = readEvents();
-    // Progress is gone but the collected data survives, plus a reset marker.
-    expect(after.length).toBe(before + 1);
-    expect(after.at(-1)?.name).toBe("prototype_reset");
-    // In-memory log mirrors storage: history plus the marker.
-    expect(usePrototypeStore.getState().events.length).toBe(before + 1);
-    // Progress itself is fully reset.
+    // Progress is gone...
     expect(usePrototypeStore.getState().goalsByDay).toEqual({});
+    expect(usePrototypeStore.getState().currentDay).toBe(1);
+    // ...but collected data survives, and nothing extra is appended (there is
+    // no reset event in the Phase 0 schema).
+    expect(readEvents().length).toBe(before);
+    expect(usePrototypeStore.getState().events.length).toBe(before);
   });
 
   it("exports the log that was restored from storage", () => {
