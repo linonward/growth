@@ -1,11 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
 import { DebugPanel } from "@/components/debug/DebugPanel";
 import { BottomNav } from "@/components/navigation/BottomNav";
-import { IconSprout } from "@/components/ui/icons";
+import { RouteSkeleton } from "@/components/ui/Skeletons";
 import { useHydrateStore } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
@@ -45,6 +46,7 @@ const RewardOverlay = dynamic(
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const ready = useHydrateStore();
+  const pathname = usePathname();
   const hasCompletedFirstRun = usePrototypeStore((s) => s.hasCompletedFirstRun);
 
   /*
@@ -53,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
    * The overlays are lazily-loaded chunks, so rendering `children` as soon as
    * hydration finishes would paint the world for a moment and then cover it
    * with the first-run overlay. Gating the app on `hasCompletedFirstRun` (not
-   * just on `ready`) keeps the boot splash up until onboarding takes over.
+   * just on `ready`) keeps the skeleton up until onboarding takes over.
    */
   const showApp = ready && hasCompletedFirstRun;
   const showFirstRun = ready && !hasCompletedFirstRun;
@@ -80,30 +82,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-frame">
       <main className="flex min-h-0 flex-1 flex-col">
-        {showApp ? children : <BootSplash />}
+        {showApp ? children : <RouteSkeleton pathname={pathname} />}
       </main>
 
-      {showApp ? <BottomNav /> : null}
+      {/*
+        The nav is rendered from the very first paint so the frame is complete
+        immediately and nothing shifts when the data arrives. For a first-run
+        student it is simply hidden behind the opaque onboarding overlay.
+      */}
+      <BottomNav />
 
       {showFirstRun ? <FirstRunOverlay /> : null}
       <DayStartOverlay />
       <RewardOverlay />
       <FinaleOverlay />
       <DebugPanel />
-    </div>
-  );
-}
-
-/** First paint placeholder. Identical on the server and client, so hydration is stable. */
-function BootSplash() {
-  return (
-    <div className="flex flex-1 items-center justify-center">
-      <div className="animate-pulse text-center">
-        <span className="chip mx-auto h-16 w-16 bg-leaf-wash text-leaf-deep" aria-hidden>
-          <IconSprout size={30} />
-        </span>
-        <p className="t-caption mt-3">正在打开你的世界…</p>
-      </div>
     </div>
   );
 }

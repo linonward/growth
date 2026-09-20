@@ -353,6 +353,33 @@ body {
 }
 
 /*
+ * First-paint placeholders. The app's content is entirely localStorage-driven,
+ * so the server cannot render real data — but it can render the *shape* of the
+ * screen, which means something app-like appears immediately instead of a
+ * spinner on a blank page. Kept gentle (a slow shimmer, not a flashing bar).
+ */
+.skeleton {
+  border-radius: 14px;
+  background: linear-gradient(
+    100deg,
+    var(--color-sand) 28%,
+    #f8f2e7 50%,
+    var(--color-sand) 72%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.9s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/*
  * Day 7 camera pan. Done in CSS rather than framer-motion so the animation
  * library stays off the critical path of the world screen.
  */
@@ -367,7 +394,8 @@ body {
   .anim-drift,
   .anim-twinkle,
   .anim-sway,
-  .anim-rise {
+  .anim-rise,
+  .skeleton {
     animation: none !important;
   }
 

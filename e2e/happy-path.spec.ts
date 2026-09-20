@@ -216,16 +216,20 @@ test("the debug panel is hidden without ?debug=1", async ({ page }) => {
  * the world for a moment and then covered it with the onboarding overlay.
  */
 test("首次访问：世界不会先于欢迎页闪现", async ({ page }) => {
-  // Watch the DOM from before the app boots and record whether any app-only
-  // chrome ever appeared. Note `world-scene` is NOT a usable signal here: the
-  // onboarding overlay renders its own WorldScene preview.
+  // Watch the DOM from before the app boots and record whether any real page
+  // content ever appeared. The skeleton and the bottom nav are intentionally
+  // present from the first paint — the nav is hidden behind the opaque overlay
+  // and the skeleton is a placeholder — so only real content counts as a leak.
+  // Note `world-scene` is not a usable signal either: the onboarding overlay
+  // renders its own WorldScene preview.
   await page.addInitScript(() => {
     (window as unknown as { __leakedApp: string[] }).__leakedApp = [];
     const seen = (window as unknown as { __leakedApp: string[] }).__leakedApp;
     const check = () => {
       for (const [sel, label] of [
         ['[data-testid="day-badge"]', "world-page"],
-        ["nav", "bottom-nav"],
+        ['[data-testid="world-name"]', "world-title"],
+        ['[data-testid="today-energy"]', "energy-panel"],
       ] as const) {
         if (document.querySelector(sel) && !seen.includes(label)) seen.push(label);
       }
