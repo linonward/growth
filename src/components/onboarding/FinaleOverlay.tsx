@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { EmojiChip } from "@/components/ui/primitives";
 import { DAY7_FINALE_LINES } from "@/data/days";
 import { usePrototypeStore } from "@/store/prototype-store";
 
@@ -100,14 +101,29 @@ function FinaleSequence() {
               transition={{ duration: 0.45 }}
               data-testid={`finale-event-${event.id}`}
             >
-              <div className="flex items-center justify-center gap-3 text-[38px]">
-                <span aria-hidden>{event.from}</span>
-                <span className="text-[20px] text-ink-faint" aria-hidden>
-                  →
+              <div className="flex items-center justify-center gap-4">
+                <EmojiChip tint="sand" size={62}>
+                  {event.from}
+                </EmojiChip>
+                <span className="text-ink-faint" aria-hidden>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 12h15M13 6l6 6-6 6" />
+                  </svg>
                 </span>
-                <span aria-hidden>{event.to}</span>
+                <EmojiChip tint="growth" size={62}>
+                  {event.to}
+                </EmojiChip>
               </div>
-              <p className="mt-7 text-[20px] font-bold text-ink">
+              <p className="t-display mt-7 text-ink">
                 {event.id === "pet" ? `${petName}${event.title}` : event.title}
               </p>
               <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
@@ -134,9 +150,9 @@ function FinaleSequence() {
           className="flex flex-1 flex-col items-center justify-center"
           data-testid="finale-summary"
         >
-          <div className="text-[46px]" aria-hidden>
+          <EmojiChip tint="blossom" size={76}>
             🌸
-          </div>
+          </EmojiChip>
           <div className="mt-8 space-y-3">
             {DAY7_FINALE_LINES.map((line, i) => (
               <motion.p

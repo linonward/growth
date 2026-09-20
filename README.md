@@ -191,6 +191,29 @@ http://localhost:3000/?debug=1
 | --- | --- | --- |
 | ![Day 1](docs/screens/day-1.png) | ![Day 3](docs/screens/day-3.png) | ![Day 7](docs/screens/day-7.png) |
 
+Day 6 是刻意的 anticipation 实验：小门出现，但当天无论完成多少任务都不会打开。
+
+| 今日成长 | 我的伙伴 | 成长轨迹 |
+| --- | --- | --- |
+| ![今日成长](docs/screens/goals.png) | ![我的伙伴](docs/screens/pet.png) | ![成长轨迹](docs/screens/history.png) |
+
+---
+
+## 视觉系统
+
+方向来自 spec §20：**warm · calm · soft · nature · storybook · cozy**。
+
+- **设计 token 集中在 `globals.css`**：排版层级（`.t-display` / `.t-title` /
+  `.t-headline` / `.t-body` / `.t-caption` / `.t-label`，行高按中文调过）、暖色分层阴影
+  （`--shadow-soft` / `--shadow-lift`）、表面（`.card` / `.card-warm` / `.card-hero`）、
+  按钮（`.btn-primary` / `.btn-ghost`）。
+- **图标是自绘 SVG**（`src/components/ui/icons.tsx`），不用 emoji 做 UI 装饰。
+  四个 emoji 各自带着不同的字重、尺寸和配色，永远拼不成一套系统；自绘图标共用一套
+  描边并继承 `currentColor`，所以选中态能把整个字形染成品牌绿。
+- **emoji 只作为叙事内容保留**（🥚→🐣、🌱→🌳），并统一包在 `EmojiChip` 的圆形底色里，
+  这样它们看起来是有意为之而不是贴上来的。
+- **模板图标**由 `CATEGORY_ICON` 映射到五个类别图标，每个类别一个色调。
+
 ---
 
 ## 技术栈

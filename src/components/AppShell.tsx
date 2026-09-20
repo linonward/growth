@@ -5,6 +5,7 @@ import { type ReactNode, useEffect } from "react";
 
 import { DebugPanel } from "@/components/debug/DebugPanel";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { IconSprout } from "@/components/ui/icons";
 import { useHydrateStore } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
@@ -89,10 +90,10 @@ function BootSplash() {
   return (
     <div className="flex flex-1 items-center justify-center">
       <div className="animate-pulse text-center">
-        <div className="text-[40px]" aria-hidden>
-          🌱
-        </div>
-        <p className="mt-3 text-[13px] text-ink-faint">正在打开你的世界…</p>
+        <span className="chip mx-auto h-16 w-16 bg-leaf-wash text-leaf-deep" aria-hidden>
+          <IconSprout size={30} />
+        </span>
+        <p className="t-caption mt-3">正在打开你的世界…</p>
       </div>
     </div>
   );

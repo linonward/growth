@@ -61,11 +61,3 @@ export const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   interest: "兴趣",
   helping: "帮助家人",
 };
-
-export const CATEGORY_EMOJI: Readonly<Record<string, string>> = {
-  reading: "📖",
-  study: "✏️",
-  exercise: "🏃",
-  interest: "🎨",
-  helping: "❤️",
-};

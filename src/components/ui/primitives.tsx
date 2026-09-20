@@ -2,24 +2,90 @@
 
 import type { ReactNode } from "react";
 
+/* ------------------------------------------------------------------ surfaces */
+
 export function Card({
   children,
   className = "",
+  variant = "default",
   as = "div",
 }: {
   children: ReactNode;
   className?: string;
+  variant?: "default" | "warm" | "hero";
   as?: "div" | "section" | "li";
 }) {
   const Tag = as;
+  const base =
+    variant === "hero" ? "card-hero" : variant === "warm" ? "card-warm" : "card";
+  return <Tag className={`${base} ${className}`}>{children}</Tag>;
+}
+
+const TINTS: Record<string, string> = {
+  sand: "bg-sand/70 text-ink-soft",
+  leaf: "bg-leaf-wash text-leaf-deep",
+  growth: "bg-growth-wash text-growth",
+  blossom: "bg-blossom-wash text-blossom",
+  sky: "bg-sky-mist text-[#5c93b5]",
+  mystery: "bg-mystery-wash text-mystery",
+};
+
+export type ChipTint = keyof typeof TINTS;
+
+/**
+ * A soft tinted circle behind a narrative emoji.
+ *
+ * Emoji are kept for story beats (the egg cracking, the tree blooming) because
+ * they are content, not chrome — but they arrive in wildly different weights
+ * and palettes. Wrapping them in a consistent chip makes them read as
+ * intentional rather than pasted in.
+ */
+export function EmojiChip({
+  children,
+  tint = "sand",
+  size = 40,
+  className = "",
+}: {
+  children: ReactNode;
+  tint?: ChipTint;
+  size?: number;
+  className?: string;
+}) {
   return (
-    <Tag
-      className={`rounded-card border border-sand bg-white/80 p-4 shadow-[0_2px_10px_-6px_rgba(90,74,52,0.25)] ${className}`}
+    <span
+      className={`chip ${TINTS[tint]} ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden
     >
-      {children}
-    </Tag>
+      <span style={{ fontSize: Math.round(size * 0.5), lineHeight: 1 }}>{children}</span>
+    </span>
   );
 }
+
+/** Tinted circle behind a line icon, matching EmojiChip's footprint. */
+export function IconChip({
+  children,
+  tint = "leaf",
+  size = 40,
+  className = "",
+}: {
+  children: ReactNode;
+  tint?: ChipTint;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`chip ${TINTS[tint]} ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------- actions */
 
 export function PrimaryButton({
   children,
@@ -42,11 +108,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled}
       data-testid={testId}
-      className={`cta w-full px-5 text-[15px] text-white ${
-        disabled
-          ? "bg-ink-faint/40 cursor-not-allowed"
-          : "bg-leaf-deep hover:brightness-105 active:brightness-95"
-      } ${className}`}
+      className={`cta btn-primary w-full px-5 ${className}`}
     >
       {children}
     </button>
@@ -56,11 +118,13 @@ export function PrimaryButton({
 export function GhostButton({
   children,
   onClick,
+  disabled,
   testId,
   className = "",
 }: {
   children: ReactNode;
   onClick?: () => void;
+  disabled?: boolean;
   testId?: string;
   className?: string;
 }) {
@@ -68,30 +132,46 @@ export function GhostButton({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       data-testid={testId}
-      className={`cta w-full border border-sand bg-white/70 px-5 text-[15px] text-ink-soft hover:bg-white ${className}`}
+      className={`cta btn-ghost w-full px-5 ${className}`}
     >
       {children}
     </button>
   );
 }
 
-/** Rounded energy bar. Purely a helper for the number, never the headline (P1). */
+/* ------------------------------------------------------------------ progress */
+
+/**
+ * Rounded energy bar.
+ *
+ * Purely a helper for the number, never the headline (principle P1): the world
+ * change is the reward, the bar only explains progress.
+ */
 export function ProgressBar({
   value,
   max,
   label,
   testId,
+  tone = "growth",
 }: {
   value: number;
   max: number;
   label?: string;
   testId?: string;
+  tone?: "growth" | "leaf";
 }) {
   const pct = max <= 0 ? 0 : Math.min(100, Math.max(0, (value / max) * 100));
+  const fill =
+    tone === "leaf"
+      ? "linear-gradient(90deg, #9ccb92 0%, #4f8a4e 100%)"
+      : "linear-gradient(90deg, #ffd08a 0%, #eaa94b 100%)";
+
   return (
     <div
-      className="h-3 w-full overflow-hidden rounded-full bg-sand"
+      className="h-2.5 w-full overflow-hidden rounded-full bg-sand/80"
+      style={{ boxShadow: "inset 0 1px 2px rgb(120 98 70 / 0.12)" }}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
@@ -100,19 +180,21 @@ export function ProgressBar({
       data-testid={testId}
     >
       <div
-        className="h-full rounded-full bg-growth transition-[width] duration-500 ease-out"
-        style={{ width: `${pct}%` }}
+        className="h-full rounded-full transition-[width] duration-500 ease-out"
+        style={{
+          width: `${pct}%`,
+          background: fill,
+          boxShadow: "0 1px 0 rgb(255 255 255 / 0.5) inset",
+        }}
       />
     </div>
   );
 }
 
+/* ------------------------------------------------------------------- headers */
+
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="mb-2 text-[12px] font-semibold tracking-wide text-ink-faint">
-      {children}
-    </p>
-  );
+  return <p className="t-label mb-2.5">{children}</p>;
 }
 
 export function ScreenHeader({
@@ -125,10 +207,10 @@ export function ScreenHeader({
   right?: ReactNode;
 }) {
   return (
-    <header className="flex items-start justify-between px-5 pt-6 pb-3">
+    <header className="flex items-start justify-between px-5 pt-7 pb-3">
       <div>
-        <h1 className="text-[20px] font-bold text-ink">{title}</h1>
-        {subtitle ? <p className="mt-0.5 text-[13px] text-ink-soft">{subtitle}</p> : null}
+        <h1 className="t-title text-ink">{title}</h1>
+        {subtitle ? <p className="t-caption mt-1">{subtitle}</p> : null}
       </div>
       {right}
     </header>

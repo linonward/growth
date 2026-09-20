@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
-import { ProgressBar } from "@/components/ui/primitives";
+import { IconSparkle, IconWorldDrop } from "@/components/ui/icons";
+import { EmojiChip, ProgressBar } from "@/components/ui/primitives";
 import { getGoalTemplate } from "@/data/goals";
 import { MAX_ENERGY_PER_DAY } from "@/domain/constants";
 import type { RewardMoment, RewardStage } from "@/domain/types";
@@ -158,14 +159,17 @@ function StageConfirm({ emoji, title }: { emoji: string; title: string }) {
       transition={{ type: "spring", stiffness: 220, damping: 18 }}
       data-testid="reward-stage-confirm"
     >
-      <p className="text-[44px]" aria-hidden>
-        🎉
-      </p>
-      <p className="mt-2 text-[22px] font-bold text-ink">今天做到了！</p>
-      <p className="mt-2 text-[15px] text-ink-soft">
-        {emoji} {title}
-      </p>
-      <p className="mt-4 text-[17px] font-semibold text-growth">+10 成长能量</p>
+      <span className="chip mx-auto h-20 w-20 bg-growth-wash text-growth" aria-hidden>
+        <IconSparkle size={40} />
+      </span>
+      <p className="t-display mt-4 text-ink">今天做到了！</p>
+      <div className="mt-3 flex items-center justify-center gap-2.5">
+        <EmojiChip tint="sand" size={34}>
+          {emoji}
+        </EmojiChip>
+        <span className="t-headline text-ink-soft">{title}</span>
+      </div>
+      <p className="t-headline mt-5 text-growth">+10 成长能量</p>
     </motion.div>
   );
 }
@@ -174,7 +178,7 @@ function StageConfirm({ emoji, title }: { emoji: string; title: string }) {
 function StageEnergy() {
   return (
     <div data-testid="reward-stage-energy" className="relative">
-      <p className="text-[20px] font-bold text-growth">✨ +10</p>
+      <p className="t-title text-growth">+10 成长能量</p>
       <div className="relative mx-auto mt-6 h-40 w-40">
         <div className="absolute inset-x-0 bottom-0 flex justify-center">
           {Array.from({ length: 7 }).map((_, i) => (
@@ -194,13 +198,13 @@ function StageEnergy() {
           ))}
         </div>
         <motion.div
-          className="absolute inset-x-0 bottom-0 text-center text-[40px]"
+          className="absolute inset-x-0 bottom-0 flex justify-center text-leaf-deep"
           initial={{ scale: 0.8 }}
           animate={{ scale: [0.8, 1.1, 1] }}
           transition={{ duration: 0.9 }}
           aria-hidden
         >
-          🌍
+          <IconWorldDrop size={54} />
         </motion.div>
       </div>
     </div>
@@ -227,14 +231,36 @@ function StageChange({
       animate={{ opacity: 1, y: 0 }}
       data-testid="reward-stage-change"
     >
-      <div className="flex items-center justify-center gap-3 text-[40px]">
+      <div className="flex items-center justify-center gap-4">
         <motion.span
           initial={{ opacity: 1, scale: 1 }}
           animate={{ opacity: 0, scale: 0.7 }}
           transition={{ duration: 0.45 }}
           aria-hidden
         >
-          {from}
+          <EmojiChip tint="sand" size={64}>
+            {from}
+          </EmojiChip>
+        </motion.span>
+        <motion.span
+          className="text-ink-faint"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+          aria-hidden
+        >
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 12h15M13 6l6 6-6 6" />
+          </svg>
         </motion.span>
         <motion.span
           initial={{ opacity: 0, scale: 0.6 }}
@@ -242,7 +268,9 @@ function StageChange({
           transition={{ duration: 0.7, delay: 0.4 }}
           aria-hidden
         >
-          {to}
+          <EmojiChip tint={major ? "growth" : "leaf"} size={64}>
+            {to}
+          </EmojiChip>
         </motion.span>
       </div>
       <p

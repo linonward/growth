@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 
+import { EmojiChip } from "@/components/ui/primitives";
 import { getDayNarrative } from "@/data/days";
 import { DEFAULT_PET_NAME } from "@/domain/constants";
 import { isPetBorn } from "@/domain/pet";
@@ -63,16 +64,16 @@ export function DayStartOverlay() {
             这里好像发生了一点变化……
           </p>
 
-          <div className="mt-8 flex items-center gap-3 text-[38px]">
-            <motion.span
-              animate={{ y: [0, -6, 0] }}
-              transition={{ duration: 2.4, repeat: Infinity }}
-              aria-hidden
-            >
+          <motion.div
+            className="mt-8"
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 2.4, repeat: Infinity }}
+          >
+            <EmojiChip tint="growth" size={74}>
               {narrative.emoji}
-            </motion.span>
-          </div>
-          <p className="mt-4 text-[15px] font-semibold text-leaf-deep">
+            </EmojiChip>
+          </motion.div>
+          <p className="t-headline mt-5 max-w-[16rem] text-leaf-deep">
             {narrative.majorCopy}
           </p>
 

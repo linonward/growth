@@ -50,30 +50,49 @@ export function Clouds({ count, y = 0 }: { count: number; y?: number }) {
   );
 }
 
-/** Ground. Extends past both edges so the camera can pan on Day 7. */
+/**
+ * Ground.
+ *
+ * Two pale hill bands sit at the horizon before the main ground. Without them
+ * the top ~70% of the scene was flat empty sky, which is what made the world
+ * read as unfinished. Everything extends past both edges so the camera can pan
+ * on Day 7.
+ */
 export function Ground({ lush }: { lush: boolean }) {
   return (
     <g>
+      {/* distant hills — gives the horizon depth */}
       <path
-        d="M-40 246 C 60 226 130 240 200 238 C 280 236 360 224 470 240 L470 360 L-40 360 Z"
-        fill={lush ? "#B7DCAA" : "#CBE6BE"}
+        d="M-40 232 C 6 198 58 194 100 220 C 138 244 168 232 208 210 C 252 186 302 190 346 218 C 388 244 434 232 470 220 L470 320 L-40 320 Z"
+        fill="#D9ECD1"
       />
       <path
-        d="M-40 268 C 70 254 150 266 230 264 C 320 262 400 250 470 262 L470 360 L-40 360 Z"
+        d="M-40 240 C 30 222 92 226 152 234 C 222 243 302 228 362 234 C 402 238 440 232 470 236 L470 330 L-40 330 Z"
+        fill={lush ? "#C6E4BB" : "#D3EAC8"}
+      />
+      {/* main ground bands */}
+      <path
+        d="M-40 250 C 60 236 140 248 220 246 C 310 244 390 232 470 244 L470 360 L-40 360 Z"
+        fill={lush ? "#B7DCAA" : "#C7E5BB"}
+      />
+      <path
+        d="M-40 272 C 70 258 150 270 230 268 C 320 266 400 254 470 266 L470 360 L-40 360 Z"
         fill={lush ? "#9BD08F" : "#B4DDA6"}
       />
       <path
-        d="M-40 300 C 80 288 170 298 260 296 C 350 294 420 286 470 294 L470 360 L-40 360 Z"
+        d="M-40 302 C 80 290 170 300 260 298 C 350 296 420 288 470 296 L470 360 L-40 360 Z"
         fill={lush ? "#7FB87A" : "#98C88F"}
       />
       {/* grass tufts */}
-      <g stroke={C.leafDeep} strokeWidth={2} strokeLinecap="round" opacity={0.5}>
-        <path d="M40 276 L44 266" />
-        <path d="M46 277 L52 269" />
-        <path d="M300 272 L304 262" />
-        <path d="M308 273 L314 265" />
-        <path d="M196 286 L200 276" />
-        <path d="M360 280 L364 271" />
+      <g stroke={C.leafDeep} strokeWidth={2} strokeLinecap="round" opacity={0.45}>
+        <path d="M40 280 L44 270" />
+        <path d="M46 281 L52 273" />
+        <path d="M300 276 L304 266" />
+        <path d="M308 277 L314 269" />
+        <path d="M196 290 L200 280" />
+        <path d="M360 284 L364 275" />
+        <path d="M120 292 L124 283" />
+        <path d="M256 288 L260 279" />
       </g>
     </g>
   );
@@ -154,7 +173,7 @@ function Bloom({
 /** A butterfly that visits from Day 4 onwards. */
 export function Butterfly() {
   return (
-    <g transform="translate(344 196)" data-testid="butterfly">
+    <g transform="translate(344 158)" data-testid="butterfly">
       <g className="anim-float" style={{ animationDuration: "4s" }}>
         <g className="anim-drift">
           <g className="anim-twinkle" style={{ animationDuration: "1.6s" }}>

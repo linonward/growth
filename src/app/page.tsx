@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { EnergyPanel } from "@/components/growth/EnergyPanel";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
+import { IconChevronRight, IconSprout, IconSun } from "@/components/ui/icons";
 import { SCENE, WorldScene } from "@/components/world/WorldScene";
 import { getCloudCount } from "@/domain/world";
 import { useGrowth, useMilestone, useTodayEnergy } from "@/store/hooks";
@@ -42,22 +43,25 @@ export default function WorldPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      {/* ---- World (roughly the top half of the screen) ---- */}
+      {/* ---- World ---- */}
       <div className="relative shrink-0" data-testid="world-area">
-        <div className="flex items-center justify-between px-5 pt-5">
+        <div className="flex items-start justify-between px-5 pt-6 pb-1">
           <button
             type="button"
             data-testid="day-badge"
             onClick={() => router.push("/history")}
-            className="tap-target rounded-full px-1 text-left"
+            className="tap-target flex-col items-start rounded-2xl border border-sand-deep/40 bg-white/70 px-3.5 py-2 shadow-soft backdrop-blur-sm"
           >
-            <span className="block text-[17px] font-bold text-ink">Day {day}</span>
-            <span className="block text-[11px] text-ink-faint">
+            <span className="text-[15px] leading-none font-bold text-ink">Day {day}</span>
+            <span className="mt-1.5 text-[11px] leading-none text-ink-faint">
               一起成长的第 {day} 天
             </span>
           </button>
-          <span className="text-[20px]" aria-hidden>
-            ☀️
+          <span
+            className="chip mt-1 h-8 w-8 bg-white/70 text-growth shadow-soft"
+            aria-hidden
+          >
+            <IconSun size={17} />
           </span>
         </div>
 
@@ -70,6 +74,12 @@ export default function WorldPage() {
           petName={petName}
           cloudCount={getCloudCount(day)}
           className="block w-full"
+        />
+
+        {/* Soft scrim so the scene melts into the page instead of ending abruptly. */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-b from-transparent to-cream"
+          aria-hidden
         />
 
         {/* Tap targets sit above the SVG so they keep real 44x44 hit areas. */}
@@ -92,9 +102,12 @@ export default function WorldPage() {
       </div>
 
       {/* ---- 我的世界 ---- */}
-      <div className="pt-2 pb-6">
-        <div className="px-5 pb-3">
-          <h1 className="text-[19px] font-bold text-ink" data-testid="world-name">
+      <div className="relative -mt-2 pb-7">
+        <div className="flex items-center gap-2 px-5 pb-4">
+          <span className="chip h-7 w-7 bg-leaf-wash text-leaf-deep" aria-hidden>
+            <IconSprout size={16} />
+          </span>
+          <h1 className="t-title text-ink" data-testid="world-name">
             {worldName}
           </h1>
         </div>
@@ -106,30 +119,29 @@ export default function WorldPage() {
         />
 
         {pendingInitiativeDay === day ? (
-          <div className="mt-3 px-5">
+          <div className="mt-4 px-5">
             <InitiativePrompt day={day} />
           </div>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-center gap-4 px-5">
+        <div className="mt-5 flex gap-2.5 px-5">
           <button
             type="button"
             data-testid="world-to-history"
             onClick={() => router.push("/history")}
-            className="tap-target text-[13px] text-ink-soft underline decoration-sand decoration-2 underline-offset-4"
+            className="tap-target flex-1 gap-1 rounded-button border border-sand-deep/40 bg-white/70 px-3 py-2.5 text-[13px] font-medium text-ink-soft shadow-soft"
           >
             我的成长轨迹
+            <IconChevronRight size={15} className="text-ink-faint" />
           </button>
-          <span className="text-ink-faint" aria-hidden>
-            ·
-          </span>
           <button
             type="button"
             data-testid="world-to-plant"
             onClick={() => router.push("/plant")}
-            className="tap-target text-[13px] text-ink-soft underline decoration-sand decoration-2 underline-offset-4"
+            className="tap-target flex-1 gap-1 rounded-button border border-sand-deep/40 bg-white/70 px-3 py-2.5 text-[13px] font-medium text-ink-soft shadow-soft"
           >
-            看看成长植物
+            成长植物
+            <IconChevronRight size={15} className="text-ink-faint" />
           </button>
         </div>
       </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { ProgressBar } from "@/components/ui/primitives";
-import { CATEGORY_LABELS, GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
+import { CATEGORY_ICON, IconCheck, IconChevronRight } from "@/components/ui/icons";
+import { IconChip, ProgressBar } from "@/components/ui/primitives";
+import { GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
 import {
   ENERGY_PER_GOAL,
   MAX_ENERGY_PER_DAY,
@@ -11,6 +12,15 @@ import {
 } from "@/domain/constants";
 import { useGrowth, useTodayEnergy, useTodayGoals } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
+
+/** Tint per goal category, so the five options read as five distinct things. */
+const CATEGORY_TINT = {
+  reading: "sky",
+  study: "growth",
+  exercise: "leaf",
+  interest: "blossom",
+  helping: "mystery",
+} as const;
 
 /**
  * Page 02 — 今日成长 (spec section 4).
@@ -43,23 +53,29 @@ export default function GoalsPage() {
     const confirmingTemplate = confirming
       ? getGoalTemplate(confirming.templateId)
       : undefined;
+    const allDone = completedCount === goals.length;
 
     return (
       <div
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         data-testid="goals-tasks"
       >
-        <header className="px-5 pt-6 pb-3">
-          <p className="text-[12px] font-semibold tracking-wide text-ink-faint">
-            Day {day}
+        <header className="px-5 pt-7 pb-4">
+          <p className="t-label">DAY {day}</p>
+          <h1 className="t-title mt-1.5 text-ink">今天的成长</h1>
+          <p className="t-caption mt-1">
+            {allDone
+              ? "今天的成长都做到了。"
+              : `还有 ${goals.length - completedCount} 个等着你`}
           </p>
-          <h1 className="mt-0.5 text-[20px] font-bold text-ink">今天的成长</h1>
         </header>
 
-        <ul className="space-y-2.5 px-5">
+        <ul className="space-y-3 px-5">
           {goals.map((goal) => {
             const template = getGoalTemplate(goal.templateId);
             if (!template) return null;
+            const Icon = CATEGORY_ICON[template.category];
+            const tint = CATEGORY_TINT[template.category];
             return (
               <li key={goal.id}>
                 <button
@@ -68,75 +84,87 @@ export default function GoalsPage() {
                   data-completed={goal.completed}
                   disabled={goal.completed}
                   onClick={() => setConfirmingId(goal.id)}
-                  className={`flex w-full items-center gap-3 rounded-card border px-4 py-4 text-left transition ${
+                  className={`flex w-full items-center gap-3.5 rounded-card px-4 py-4 text-left transition ${
                     goal.completed
-                      ? "border-leaf/40 bg-leaf/10"
-                      : "border-sand bg-white/80 hover:border-leaf/60"
+                      ? "border border-leaf/30 bg-leaf-wash/70"
+                      : "card hover:-translate-y-px"
                   }`}
                 >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[13px] ${
-                      goal.completed
-                        ? "border-leaf-deep bg-leaf-deep text-white"
-                        : "border-sand text-transparent"
-                    }`}
-                    aria-hidden
-                  >
-                    ✓
-                  </span>
+                  <IconChip tint={goal.completed ? "leaf" : tint} size={42}>
+                    <Icon size={21} />
+                  </IconChip>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold text-ink">
-                      {template.emoji} {template.title}
-                    </span>
-                    <span className="mt-0.5 block text-[12px] text-ink-faint">
+                    <span className="t-headline block text-ink">{template.title}</span>
+                    <span className="t-caption mt-0.5 block text-[12px]">
                       {goal.completed ? "已完成" : `完成后 +${ENERGY_PER_GOAL} 成长能量`}
                     </span>
                   </span>
+                  {goal.completed ? (
+                    <span className="chip h-7 w-7 bg-leaf-deep text-white" aria-hidden>
+                      <IconCheck size={15} />
+                    </span>
+                  ) : (
+                    <IconChevronRight size={18} className="shrink-0 text-ink-faint" />
+                  )}
                 </button>
               </li>
             );
           })}
         </ul>
 
-        <div className="mt-7 px-5 pb-8">
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-[14px] font-semibold text-ink">今日成长</span>
-            <span
-              className="text-[14px] tabular-nums text-ink-soft"
-              data-testid="goals-today-energy"
-            >
-              {todayEnergy} / {MAX_ENERGY_PER_DAY}
-            </span>
+        {/* Day progress — anchored to the bottom so a short list doesn't leave
+            the screen looking half-finished. */}
+        <div className="mt-auto px-5 pt-7 pb-9">
+          <div className="card-warm px-4 py-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="t-headline text-ink">今日成长</span>
+              <span
+                className="t-body t-num text-ink-soft"
+                data-testid="goals-today-energy"
+              >
+                <span className="text-[17px] font-bold text-ink">{todayEnergy}</span>
+                <span className="text-ink-faint"> / {MAX_ENERGY_PER_DAY}</span>
+              </span>
+            </div>
+            <ProgressBar
+              value={todayEnergy}
+              max={MAX_ENERGY_PER_DAY}
+              label="今日成长能量"
+            />
+            {allDone ? (
+              <p
+                className="t-caption mt-3 text-center font-semibold text-leaf-deep"
+                data-testid="goals-all-done"
+              >
+                今天的成长都做到了。
+              </p>
+            ) : null}
           </div>
-          <ProgressBar
-            value={todayEnergy}
-            max={MAX_ENERGY_PER_DAY}
-            label="今日成长能量"
-          />
-
-          {completedCount === goals.length ? (
-            <p
-              className="mt-5 text-center text-[14px] text-leaf-deep"
-              data-testid="goals-all-done"
-            >
-              今天的成长都做到了。
-            </p>
-          ) : null}
         </div>
 
         {/* ---- Confirmation sheet ---- */}
         {confirming && confirmingTemplate ? (
           <div
-            className="absolute inset-0 z-30 flex items-end bg-ink/25 backdrop-blur-[1px]"
+            className="absolute inset-0 z-30 flex items-end bg-ink/30 backdrop-blur-[2px]"
             data-testid="goal-confirm-dialog"
             role="dialog"
             aria-modal="true"
           >
-            <div className="anim-rise w-full rounded-t-[24px] bg-cream px-6 pt-6 pb-8">
-              <p className="text-[17px] font-bold text-ink">完成了吗？</p>
-              <p className="mt-2 text-[15px] text-ink-soft">
-                {confirmingTemplate.emoji} {confirmingTemplate.title}
-              </p>
+            <div className="anim-rise w-full rounded-t-[28px] bg-cream px-6 pt-7 pb-9 shadow-[0_-20px_50px_-20px_rgb(120_98_70/0.5)]">
+              <div
+                className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-sand-deep/60"
+                aria-hidden
+              />
+              <p className="t-title text-ink">完成了吗？</p>
+              <div className="mt-4 flex items-center gap-3.5 rounded-card bg-white/70 px-4 py-3.5">
+                <IconChip tint={CATEGORY_TINT[confirmingTemplate.category]} size={42}>
+                  {(() => {
+                    const Icon = CATEGORY_ICON[confirmingTemplate.category];
+                    return <Icon size={21} />;
+                  })()}
+                </IconChip>
+                <span className="t-headline text-ink">{confirmingTemplate.title}</span>
+              </div>
               <div className="mt-6 space-y-2.5">
                 <button
                   type="button"
@@ -145,7 +173,7 @@ export default function GoalsPage() {
                     completeGoal(confirming.id);
                     setConfirmingId(null);
                   }}
-                  className="cta w-full bg-leaf-deep px-5 text-[15px] font-semibold text-white"
+                  className="cta btn-primary w-full px-5"
                 >
                   今天做到了
                 </button>
@@ -153,7 +181,7 @@ export default function GoalsPage() {
                   type="button"
                   data-testid="goal-confirm-no"
                   onClick={() => setConfirmingId(null)}
-                  className="cta w-full border border-sand bg-white/70 px-5 text-[15px] text-ink-soft"
+                  className="cta btn-ghost w-full px-5"
                 >
                   还没有
                 </button>
@@ -180,20 +208,18 @@ export default function GoalsPage() {
   };
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-      data-testid="goal-picker"
-    >
-      <header className="px-5 pt-6 pb-1">
-        <h1 className="text-[20px] font-bold text-ink">今天想做些什么？</h1>
-        <p className="mt-1 text-[13px] text-ink-soft">
-          选择最多 {MAX_GOALS_PER_DAY} 个成长目标
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="goal-picker">
+      <header className="px-5 pt-7 pb-1">
+        <p className="t-label">DAY {day}</p>
+        <h1 className="t-title mt-1.5 text-ink">今天想做些什么？</h1>
+        <p className="t-caption mt-1">选择最多 {MAX_GOALS_PER_DAY} 个成长目标</p>
       </header>
 
-      <ul className="mt-4 space-y-2.5 px-5">
+      <ul className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-2">
         {GOAL_TEMPLATES.map((template) => {
           const selected = picked.includes(template.id);
+          const Icon = CATEGORY_ICON[template.category];
+          const tint = CATEGORY_TINT[template.category];
           return (
             <li key={template.id}>
               <button
@@ -202,32 +228,30 @@ export default function GoalsPage() {
                 data-selected={selected}
                 aria-pressed={selected}
                 onClick={() => toggle(template.id)}
-                className={`flex w-full items-center gap-3 rounded-card border px-4 py-4 text-left transition ${
+                className={`flex w-full items-center gap-3.5 rounded-card px-4 py-4 text-left transition ${
                   selected
-                    ? "border-leaf-deep bg-leaf/12"
-                    : "border-sand bg-white/80 hover:border-leaf/50"
+                    ? "border border-leaf-deep/45 bg-leaf-wash shadow-soft"
+                    : "card hover:-translate-y-px"
                 }`}
               >
-                <span className="text-[20px]" aria-hidden>
-                  {template.emoji}
-                </span>
+                <IconChip tint={selected ? "leaf" : tint} size={44}>
+                  <Icon size={22} />
+                </IconChip>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold text-ink">
-                    {template.title}
-                  </span>
-                  <span className="mt-0.5 block text-[12px] text-ink-faint">
-                    {template.description} · {CATEGORY_LABELS[template.category]}
+                  <span className="t-headline block text-ink">{template.title}</span>
+                  <span className="t-caption mt-0.5 block text-[12px]">
+                    {template.description}
                   </span>
                 </span>
                 <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[13px] ${
+                  className={`chip h-7 w-7 border transition ${
                     selected
                       ? "border-leaf-deep bg-leaf-deep text-white"
-                      : "border-sand text-transparent"
+                      : "border-sand-deep/60 text-transparent"
                   }`}
                   aria-hidden
                 >
-                  ✓
+                  <IconCheck size={15} />
                 </span>
               </button>
             </li>
@@ -235,21 +259,27 @@ export default function GoalsPage() {
         })}
       </ul>
 
-      <div className="mt-auto px-5 pt-6 pb-8">
-        <p
-          className="mb-3 text-center text-[13px] text-ink-soft"
-          data-testid="goal-pick-count"
-        >
-          已选择 {picked.length} / {MAX_GOALS_PER_DAY}
-        </p>
+      <div className="shrink-0 border-t border-sand-deep/35 bg-cream/95 px-5 pt-4 pb-6 backdrop-blur">
+        <div className="mb-3 flex items-center justify-center gap-2">
+          {Array.from({ length: MAX_GOALS_PER_DAY }).map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i < picked.length ? "w-5 bg-leaf-deep" : "w-1.5 bg-sand-deep/60"
+              }`}
+              aria-hidden
+            />
+          ))}
+          <span className="t-caption ml-2 font-semibold" data-testid="goal-pick-count">
+            已选择 {picked.length} / {MAX_GOALS_PER_DAY}
+          </span>
+        </div>
         <button
           type="button"
           disabled={picked.length === 0}
           data-testid="goal-start"
           onClick={() => selectGoals(day, picked)}
-          className={`cta w-full px-5 text-[15px] font-semibold text-white ${
-            picked.length === 0 ? "bg-ink-faint/40" : "bg-leaf-deep"
-          }`}
+          className="cta btn-primary w-full px-5"
         >
           开始今天的成长
         </button>
