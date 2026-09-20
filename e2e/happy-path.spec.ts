@@ -232,10 +232,9 @@ test("底部导航：四个入口等宽居中，且点击区域不小于 44x44",
     // Spec §21: minimum tap target.
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
-    // Each entry fills exactly one quarter of the bar...
-    expect(Math.abs(box!.width - cellWidth)).toBeLessThan(2);
-    // ...starting at that quarter's left edge, so its content is centred.
-    expect(Math.abs(box!.x - (navBox!.x + i * cellWidth))).toBeLessThan(2);
+    // Each entry is centred inside its own quarter of the bar.
+    const cellCentre = navBox!.x + (i + 0.5) * cellWidth;
+    expect(Math.abs(box!.x + box!.width / 2 - cellCentre)).toBeLessThan(2);
   }
 
   // Exactly one entry is marked current.
@@ -249,6 +248,92 @@ test("底部导航：四个入口等宽居中，且点击区域不小于 44x44",
   const wideNav = await page.locator("nav").boundingBox();
   expect(wideNav!.width).toBeLessThanOrEqual(430);
   expect(Math.abs(wideNav!.x - (1280 - wideNav!.width) / 2)).toBeLessThan(2);
+});
+
+/** The selected entry must be visibly highlighted, not just recoloured text. */
+test("底部导航：选中项有明显高亮", async ({ page }) => {
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  const transparent = "rgba(0, 0, 0, 0)";
+
+  for (const [path, activeId, otherIds] of [
+    ["/plant", "nav-plant", ["nav-world", "nav-goals", "nav-pet"]],
+    ["/goals", "nav-goals", ["nav-world", "nav-pet", "nav-plant"]],
+  ] as const) {
+    await page.goto(path);
+
+    // Exactly one entry reports itself active.
+    await expect(page.getByTestId(activeId)).toHaveAttribute("data-active", "true");
+    for (const id of otherIds) {
+      await expect(page.getByTestId(id)).toHaveAttribute("data-active", "false");
+    }
+
+    // The active entry paints a visible pill behind it; the others do not.
+    const activePill = await page
+      .getByTestId(`${activeId}-pill`)
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(activePill).not.toBe(transparent);
+
+    const inactivePill = await page
+      .getByTestId(`${otherIds[0]}-pill`)
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(inactivePill).toBe(transparent);
+
+    // And its label is tinted differently from an inactive one.
+    const activeColour = await page
+      .getByTestId(activeId)
+      .evaluate((el) => getComputedStyle(el).color);
+    const inactiveColour = await page
+      .getByTestId(otherIds[0])
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(activeColour).not.toBe(inactiveColour);
+  }
+});
+
+/**
+ * The nav must stay pinned to the bottom of the viewport on long pages.
+ *
+ * Regression: .app-frame used `min-height`, so it grew with the content and the
+ * BODY scrolled. On /history the nav ended up ~930px down an 844px viewport —
+ * only reachable after scrolling to the very end of the page.
+ */
+test("底部导航：长页面滚动时始终固定在底部", async ({ page }) => {
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // Day 7 with every goal completed gives /history and /plant plenty to scroll.
+  await page.goto("/?debug=1");
+  for (let i = 0; i < 6; i += 1) {
+    await page.getByTestId("debug-day-plus").click();
+  }
+
+  for (const path of ["/history", "/plant"]) {
+    await page.goto(path);
+    await expect(page.locator("nav")).toBeVisible();
+
+    const pageContent = page.locator('[data-testid$="-page"]');
+    const scrollable = await pageContent.evaluate(
+      (el) => el.scrollHeight > el.clientHeight + 4,
+    );
+    // The page itself must scroll internally, not the document.
+    const bodyScrolls = await page.evaluate(
+      () => document.documentElement.scrollHeight > window.innerHeight + 2,
+    );
+    expect(bodyScrolls).toBe(false);
+
+    if (scrollable) {
+      await pageContent.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+
+    const navBox = await page.locator("nav").boundingBox();
+    const viewport = page.viewportSize();
+    expect(navBox).not.toBeNull();
+    // Pinned: flush with the bottom of the viewport, before and after scrolling.
+    expect(Math.abs(navBox!.y + navBox!.height - viewport!.height)).toBeLessThan(2);
+  }
 });
 
 /**
