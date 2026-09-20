@@ -5,6 +5,12 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { appendEvent, createEvent } from "@/analytics/events";
 import { buildExportPayload, type ExperimentExport } from "@/analytics/export";
+import {
+  flushEvents,
+  installFlushListeners,
+  persistEvents,
+  readEvents,
+} from "@/analytics/persistence";
 import { GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
 import {
   DEFAULT_PET_NAME,
@@ -60,6 +66,8 @@ export interface PrototypeStoreState {
 
   // ---- actions ----
   setHydrated: (value: boolean) => void;
+  /** Adopt the analytics log loaded from its own storage key. */
+  setEvents: (events: AnalyticsEvent[]) => void;
   completeFirstRun: (input: {
     worldName?: string;
     petName?: string;
@@ -210,6 +218,8 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
       pendingInitiativeDay: null,
 
       setHydrated: (value) => set({ hasHydrated: value }),
+
+      setEvents: (events) => set({ events }),
 
       completeFirstRun: ({ worldName, petName, petSpecies, now } = {}) => {
         const at = now ?? new Date();
@@ -584,6 +594,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
 
       resetPrototype: () => {
         const now = new Date();
+        // The experiment log is intentionally preserved across a reset: the
+        // debug button is easy to hit by accident, and losing collected data
+        // would be worse than carrying a few extra days of history.
         set((state) => ({
           ...initialPersistedState(),
           // Keep who they are, but put the world back to Day 1.
@@ -595,10 +608,47 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      /**
+       * localStorage throws in Safari private mode, when the user has disabled
+       * it, and when the quota is exceeded. Persisting the prototype must never
+       * take the app down with it, so every access is guarded.
+       */
+      storage: createJSONStorage(() => ({
+        getItem: (name: string) => {
+          try {
+            return localStorage.getItem(name);
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name: string, value: string) => {
+          try {
+            localStorage.setItem(name, value);
+          } catch {
+            // ignore: quota or disabled storage
+          }
+        },
+        removeItem: (name: string) => {
+          try {
+            localStorage.removeItem(name);
+          } catch {
+            // ignore
+          }
+        },
+      })),
       // The app is fully client-rendered from localStorage, so hydration is
       // triggered explicitly on mount to keep SSR output stable.
       skipHydration: true,
+      version: 1,
+      migrate: (persisted, from) => {
+        // v0 stored the analytics log inside the main state. It is moved to its
+        // own key during hydration; dropping it here keeps the two in step.
+        const state = persisted as Record<string, unknown> | undefined;
+        if (from < 1 && state && "events" in state) {
+          delete state.events;
+        }
+        return state as never;
+      },
       partialize: (state) => ({
         hasCompletedFirstRun: state.hasCompletedFirstRun,
         profile: state.profile,
@@ -612,8 +662,39 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         hasNamedPet: state.hasNamedPet,
         day7Completed: state.day7Completed,
         continueRequested: state.continueRequested,
-        events: state.events,
+        // `events` is deliberately NOT persisted here. It lives in its own key
+        // (see analytics/persistence.ts) because it dominated every write.
       }),
     },
   ),
 );
+
+/*
+ * Analytics persistence.
+ *
+ * Wired up here rather than in a React effect on purpose: the event log should
+ * be written whether or not a component happens to be mounted, and this way the
+ * tests exercise exactly the same path the app does.
+ *
+ * `events` is deliberately absent from `partialize`, so the game-state key stays
+ * small; the log is batched into ANALYTICS_KEY by persistEvents().
+ */
+installFlushListeners();
+usePrototypeStore.subscribe((state, prev) => {
+  if (state.events !== prev.events) persistEvents(state.events);
+});
+
+/** Load the persisted analytics log into the store. Called once, on hydration. */
+export function adoptPersistedEvents(): void {
+  const store = usePrototypeStore.getState();
+  const stored = readEvents();
+  if (stored.length > 0) {
+    store.setEvents(stored);
+  } else if (store.events.length > 0) {
+    // Migrating from the schema where the log lived in the game-state key.
+    // Nothing changed, so the subscription above would not fire.
+    persistEvents(store.events);
+  }
+}
+
+export { flushEvents };

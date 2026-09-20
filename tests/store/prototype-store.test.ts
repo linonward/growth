@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { STORAGE_KEY } from "@/domain/constants";
+import { clearEvents, flushEvents, readEvents } from "@/analytics/persistence";
+import { ANALYTICS_KEY, STORAGE_KEY } from "@/domain/constants";
 import {
+  adoptPersistedEvents,
   selectGrowth,
   selectTotalEnergy,
   usePrototypeStore,
@@ -11,6 +13,7 @@ const START = "2024-05-01T09:00:00.000Z";
 
 function resetStore() {
   localStorage.clear();
+  clearEvents();
   usePrototypeStore.setState({
     hasCompletedFirstRun: true,
     profile: {
@@ -394,5 +397,86 @@ describe("Day 7 finale durability", () => {
     usePrototypeStore.getState().debugAdjustEnergy(180);
     usePrototypeStore.getState().resumeFinaleIfNeeded();
     expect(usePrototypeStore.getState().activeFinale).toBe(false);
+  });
+});
+
+describe("analytics storage is split from game state", () => {
+  it("writes events to their own key, not the game-state key", () => {
+    const ids = pickGoals(1, 3);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    flushEvents();
+
+    const main = localStorage.getItem(STORAGE_KEY) ?? "";
+    const analytics = localStorage.getItem(ANALYTICS_KEY) ?? "";
+
+    // The whole point: game-state writes must not carry the event log.
+    expect(JSON.parse(main).state.events).toBeUndefined();
+    expect(JSON.parse(analytics).events.length).toBeGreaterThan(0);
+    expect(analytics).toContain("goal_completed");
+  });
+
+  it("keeps the game-state payload small regardless of how many events exist", () => {
+    const ids = pickGoals(1, 3);
+    for (const id of ids) {
+      usePrototypeStore.getState().completeGoal(id);
+      usePrototypeStore.getState().dismissReward();
+    }
+    flushEvents();
+
+    const main = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const analytics = JSON.parse(localStorage.getItem(ANALYTICS_KEY) ?? "{}");
+
+    // 3 x goal_selected + 3 x goal_completed (+ any milestone markers).
+    expect(analytics.events.length).toBeGreaterThanOrEqual(6);
+    // Game state stays tiny because the log no longer rides along with it.
+    expect(JSON.stringify(main.state).length).toBeLessThan(1200);
+  });
+
+  it("restores the log from its own key", () => {
+    const ids = pickGoals(1, 2);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    usePrototypeStore.getState().answerInitiative(1, "self");
+    flushEvents();
+    const before = readEvents().length;
+    expect(before).toBeGreaterThan(0);
+
+    // Cold start: memory empty, storage intact. (resetStore() would wipe
+    // storage too, so clear only the in-memory log.)
+    usePrototypeStore.setState({ events: [] });
+    adoptPersistedEvents();
+    expect(usePrototypeStore.getState().events.length).toBe(before);
+    expect(
+      usePrototypeStore.getState().events.some((e) => e.name === "initiative_self"),
+    ).toBe(true);
+  });
+
+  it("keeps the experiment log across a reset, marking the reset", () => {
+    const ids = pickGoals(1, 3);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    flushEvents();
+    const before = readEvents().length;
+    expect(before).toBeGreaterThan(0);
+
+    usePrototypeStore.getState().resetPrototype();
+    flushEvents();
+
+    const after = readEvents();
+    // Progress is gone but the collected data survives, plus a reset marker.
+    expect(after.length).toBe(before + 1);
+    expect(after.at(-1)?.name).toBe("prototype_reset");
+    // In-memory log mirrors storage: history plus the marker.
+    expect(usePrototypeStore.getState().events.length).toBe(before + 1);
+    // Progress itself is fully reset.
+    expect(usePrototypeStore.getState().goalsByDay).toEqual({});
+  });
+
+  it("exports the log that was restored from storage", () => {
+    const ids = pickGoals(1, 2);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    flushEvents();
+
+    const payload = usePrototypeStore.getState().buildExport();
+    expect(payload.summary.goalsCompleted).toBe(1);
+    expect(payload.events.length).toBeGreaterThan(0);
   });
 });

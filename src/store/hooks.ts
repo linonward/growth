@@ -6,7 +6,7 @@ import { ENERGY_PER_GOAL, MAX_TOTAL_ENERGY } from "@/domain/constants";
 import { energyFromCompletedGoals, getGrowthState } from "@/domain/growth";
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import type { AnalyticsEvent, DailyGoal, GrowthState } from "@/domain/types";
-import { usePrototypeStore } from "@/store/prototype-store";
+import { adoptPersistedEvents, usePrototypeStore } from "@/store/prototype-store";
 
 /** Stable empty array so selectors never hand React a fresh reference. */
 const EMPTY_GOALS: DailyGoal[] = [];
@@ -42,6 +42,9 @@ export function useHydrateStore(): boolean {
         // Corrupt or unavailable storage: fall back to a fresh prototype.
       }
       const store = usePrototypeStore.getState();
+
+      adoptPersistedEvents();
+
       store.setHydrated(true);
       store.syncDay();
       const afterSync = usePrototypeStore.getState();

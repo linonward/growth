@@ -20,6 +20,13 @@ export const DEFAULT_PET_NAME = "小光";
 
 export const STORAGE_KEY = "growth-world-prototype-v1";
 
+/**
+ * The analytics event log is stored separately from game state: it dominated
+ * every write while it lived inside the main key (spec section 19 still only
+ * requires it to survive until it is exported).
+ */
+export const ANALYTICS_KEY = "growth-world-analytics-v1";
+
 /** Force any day value into the 1..7 experiment window. */
 export function clampDay(day: number): number {
   if (!Number.isFinite(day)) return 1;
