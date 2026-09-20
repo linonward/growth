@@ -15,14 +15,19 @@ import { EXPERIMENT_VERSION } from "@/analytics/properties";
  * drop them.
  *
  * Why this posts to PostHog's HTTP capture API instead of using posthog-js:
- * the SDK (v1.434.2) was verified — on a plain static page, with its own
- * prebuilt bundle and a minimal `{ api_host }` config — to initialise, fetch
- * its remote config, accept `capture()` calls, and then never transmit an
- * event. Posting to the documented `/batch/` endpoint from the same browser
- * returns 200 and the events arrive. Every SDK feature we would otherwise get
- * (autocapture, session replay, feature flags, surveys) is deliberately off
- * anyway and we send a fixed 14-event list, so the HTTP API is both simpler
- * and the one path that demonstrably works.
+ * the SDK (v1.434.2) initialises, fetches its remote config, accepts
+ * `capture()` calls, and then never transmits an event. Verified six ways:
+ * full config, minimal `{ api_host }` only, a plain static page with PostHog's
+ * own prebuilt `array.full.js`, through this reverse proxy, with `/i/*` also
+ * proxied, and with `defaults: "2025-05-24"`. In every case the only request
+ * was `/flags/` (plus `/array/`); no event request at all, and `flush` was
+ * undefined on the instance. Posting to the documented `/batch/` endpoint from
+ * the same browser returns 200 and the events arrive.
+ *
+ * Every SDK feature we would otherwise get (autocapture, session replay,
+ * feature flags, surveys) is deliberately off anyway and we send a fixed
+ * 14-event list, so the HTTP API is both simpler and the one path that
+ * demonstrably works.
  *
  * Privacy posture for a prototype used by 8–12 year olds:
  *   - anonymous participant UUID only, never a real identity
@@ -46,6 +51,34 @@ const ENDPOINT = process.env.NEXT_PUBLIC_POSTHOG_PROXY ?? "/ingest";
 /** Flush when this many events are queued, or after the delay below. */
 const MAX_BATCH = 10;
 const FLUSH_DELAY_MS = 2000;
+
+/**
+ * The context a SDK would attach for us.
+ *
+ * Without `$lib` PostHog does not know these are web events (Library column
+ * empty), and without a URL the URL/Screen column is blank.
+ *
+ * Privacy: only `origin + pathname` is ever sent. The query string and hash are
+ * dropped, so `?debug=1` (and anything added later) never leaves the device.
+ */
+const CLIENT_LIB = "web";
+const CLIENT_VERSION = "1.0.0";
+
+function contextProps(): Record<string, unknown> {
+  if (typeof window === "undefined") return {};
+  try {
+    const { origin, pathname } = window.location;
+    return {
+      $lib: CLIENT_LIB,
+      $lib_version: CLIENT_VERSION,
+      $current_url: `${origin}${pathname}`,
+      $pathname: pathname,
+      $host: origin,
+    };
+  } catch {
+    return {};
+  }
+}
 
 /** The transport seam. Tests substitute this; nothing else needs to know. */
 export interface AnalyticsTransport {
@@ -117,7 +150,7 @@ const httpTransport: AnalyticsTransport = {
       event: name,
       distinct_id: getParticipantId(),
       timestamp: new Date().toISOString(),
-      properties: props,
+      properties: { ...contextProps(), ...props },
     });
     if (queue.length >= MAX_BATCH) {
       flushAnalytics();
@@ -152,7 +185,10 @@ export function initAnalytics(): Promise<AnalyticsTransport | null> {
     event: "$identify",
     distinct_id: getParticipantId(),
     timestamp: new Date().toISOString(),
-    properties: { $set: { experiment_version: EXPERIMENT_VERSION } },
+    properties: {
+      ...contextProps(),
+      $set: { experiment_version: EXPERIMENT_VERSION },
+    },
   });
 
   initPromise = Promise.resolve(httpTransport);

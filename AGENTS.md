@@ -137,6 +137,12 @@ schema 里没有 reset 事件）—— Debug 按钮很容易误触，
 不要改成直连 `us.i.posthog.com` —— tracking blocker 会静默丢掉请求，
 实验数据会无声无息变成零。这是 PostHog 官方 Next.js 指南明确建议的做法。
 
+**上下文属性要自己带。** HTTP 方式没有 SDK 帮忙，`client.ts` 里
+`contextProps()` 负责补 `$lib` / `$current_url` / `$pathname` / `$host` ——
+少了它们 PostHog 的 Library 和 URL/Screen 两列会是空的。
+**`$current_url` 只允许拼 `origin + pathname`，绝不能带上 query 或 hash**，
+`tests/analytics/client.test.ts` 会断言这一点。
+
 **没有装 posthog-js，是直接 POST 到 PostHog 的 HTTP capture API。**
 原因见 `client.ts` 顶部注释：SDK 1.434.2 在最小配置下也从不发送事件（已在
 静态页面用官方预编译包复现），而 HTTP API 实测 200 且事件到达。

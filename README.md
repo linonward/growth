@@ -245,11 +245,21 @@ src/analytics/
 | `day7_completed` | `total_energy` |
 | `continue_requested` | `total_energy` |
 
-**所有事件**都自动带：
+**所有事件**都自动带公共属性：
 
 ```json
-{ "experiment_version": "phase0-v1", "experiment_day": 3 }
+{
+  "experiment_version": "phase0-v1",
+  "experiment_day": 3,
+  "$lib": "web",
+  "$pathname": "/pet",
+  "$current_url": "https://growth.linonward.com/pet"
+}
 ```
+
+`$lib` / `$current_url` / `$pathname` 是 SDK 本来会自动加的上下文（HTTP 方式要自己带），
+否则 PostHog 的 Library 和 URL/Screen 两列会是空的。
+**`$current_url` 只拼 origin + pathname**，不带 query 和 hash —— 见上面的隐私说明。
 
 这是在 `createEvent()` 里统一合并的，不是每个调用点各写一遍 ——
 结构上不可能漏。
@@ -305,7 +315,8 @@ day7_completed → continue_requested
 | Session Replay | ❌ 不引入（SDK 都没装，无从开启） |
 | Autocapture | ❌ 不存在：只发上面那 14 个事件 |
 | 真实身份 / 个人数据 | ❌ 不采集 |
-| URL / referrer / query string | ❌ 从不发送（payload 里根本没有这些字段） |
+| URL | ⚠️ **只发路径**（`/pet`），**不发 query / hash** —— 这样 PostHog 的 Screen 列可用，而 `?debug=1` 之类永远不出设备 |
+| referrer / 来源域名 | ❌ 从不发送 |
 | 请求目标 | 只发到自己的域名 `/ingest/*`，浏览器端不出现 `posthog.com` |
 
 Session Replay 对调试很诱人，但面对 8–12 岁儿童不能顺手打开 ——
