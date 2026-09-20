@@ -216,6 +216,49 @@ Day 6 是刻意的 anticipation 实验：小门出现，但当天无论完成多
 
 ---
 
+## 性能
+
+两处实测优化（都是按 vercel-react-best-practices 审查后做的）：
+
+### 1. analytics 与游戏状态分开存储
+
+事件日志原本是 store 的一个字段，zustand 每次 `set()` 都会把整个数组重新序列化 ——
+实测占每次写入的 **84%**，而且会随着一周的使用持续变大。
+
+现在日志写在独立的 key（`growth-world-analytics-v1`），并且：
+
+- 写操作去抖（800ms）+ 在 `pagehide` / `visibilitychange` 时同步 flush
+- `visibilitychange` 是为了覆盖移动端 Safari（它经常不触发 `pagehide`）
+- 所有 localStorage 访问都包了 try/catch —— 无痕模式和配额超限都会抛异常，
+  埋点绝不能因此弄挂应用
+
+单日完整流程实测：
+
+| | 优化前 | 优化后 |
+| --- | --- | --- |
+| 总写入量 | 32.8 KB | **10.7 KB** |
+| 游戏状态单次写入 | 4624 B | **724 B** |
+| 31 个事件的写入次数 | ~31 次 | **2 次** |
+
+> `resetPrototype` 会**保留**日志并追加一条 `prototype_reset` —— Debug 按钮很容易误触，
+> 丢掉已收集的数据比多留几天历史更糟。
+
+### 2. 首屏渲染真实骨架
+
+所有内容都来自 localStorage，服务端拿不到数据，所以首屏本来是
+「🌱 正在打开你的世界…」一个居中 spinner。
+
+现在 `RouteSkeleton` 会按当前路由渲染**布局一致的骨架**（骨架块尺寸对齐真实元素，
+所以数据到达时不会跳动），底部导航也从第一帧就在，且选中态正确。
+第一次访问的学生看不到这些 —— 它被不透明的欢迎页盖住了。
+
+| | 优化前 | 优化后 |
+| --- | --- | --- |
+| 首屏 HTML | 8.5 KB（只有 spinner） | **~13 KB（按路由的真实骨架）** |
+| 首屏 JS | 509 KB | 523 KB（+14 KB 骨架代码） |
+
+---
+
 ## 技术栈
 
 Next.js 16（App Router / Turbopack）· TypeScript · Tailwind CSS 4 ·
