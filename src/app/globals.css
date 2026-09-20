@@ -203,6 +203,16 @@ body {
   animation: rise-fade 420ms ease-out both;
 }
 
+/*
+ * Day 7 camera pan. Done in CSS rather than framer-motion so the animation
+ * library stays off the critical path of the world screen, which is the first
+ * thing every student sees.
+ */
+.scene-camera {
+  transition: transform 1.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-float,
   .anim-wiggle,
@@ -211,5 +221,10 @@ body {
   .anim-sway,
   .anim-rise {
     animation: none !important;
+  }
+
+  .scene-camera {
+    transition: none !important;
+    will-change: auto;
   }
 }

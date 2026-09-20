@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 import { PALETTE as C } from "@/components/world/palette";
 import { PetSprite } from "@/components/world/sprites/PetSprite";
 import { PlantSprite } from "@/components/world/sprites/PlantSprite";
@@ -87,11 +85,18 @@ export function WorldScene({
       {/* Background + Sky */}
       <rect x={-200} y={-40} width={800} height={420} fill="url(#sky)" />
 
-      {/* The camera pans left on Day 7 so the world feels like it grew. */}
-      <motion.g
-        initial={false}
-        animate={{ x: worldState.newAreaUnlocked ? -DAY7_PAN : 0 }}
-        transition={{ duration: 1.6, ease: [0.22, 0.61, 0.36, 1] }}
+      {/*
+        The camera pans left on Day 7 so the world feels like it grew.
+
+        This is a CSS transition rather than framer-motion on purpose: it keeps
+        the animation library off the critical path of the world screen (which
+        is the first thing every student sees). See .scene-camera in globals.css.
+      */}
+      <g
+        className="scene-camera"
+        style={{
+          transform: `translateX(${worldState.newAreaUnlocked ? -DAY7_PAN : 0}px)`,
+        }}
       >
         {/* Sky */}
         <Sun glow={worldState.skyGlow} />
@@ -137,7 +142,7 @@ export function WorldScene({
         {worldState.mysteryGateUnlocked ? (
           <MysteryGate open={worldState.newAreaUnlocked} />
         ) : null}
-      </motion.g>
+      </g>
     </svg>
   );
 }

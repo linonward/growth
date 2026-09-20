@@ -1,15 +1,40 @@
 "use client";
 
-import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
+import { type ReactNode, useEffect } from "react";
 
 import { DebugPanel } from "@/components/debug/DebugPanel";
 import { BottomNav } from "@/components/navigation/BottomNav";
-import { DayStartOverlay } from "@/components/onboarding/DayStartOverlay";
-import { FinaleOverlay } from "@/components/onboarding/FinaleOverlay";
-import { FirstRunOverlay } from "@/components/onboarding/FirstRunOverlay";
-import { RewardOverlay } from "@/components/reward/RewardOverlay";
 import { useHydrateStore } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
+
+/**
+ * The full-screen moments are lazy-loaded so framer-motion (~136 KB) stays out
+ * of the initial bundle. The world screen is the first thing every student
+ * sees, so it must not pay for an animation library it does not use.
+ *
+ * Each of these is always mounted by the shell and decides internally whether
+ * to render, so AnimatePresence exit animations still work.
+ */
+const DayStartOverlay = dynamic(
+  () => import("@/components/onboarding/DayStartOverlay").then((m) => m.DayStartOverlay),
+  { ssr: false },
+);
+
+const FinaleOverlay = dynamic(
+  () => import("@/components/onboarding/FinaleOverlay").then((m) => m.FinaleOverlay),
+  { ssr: false },
+);
+
+const FirstRunOverlay = dynamic(
+  () => import("@/components/onboarding/FirstRunOverlay").then((m) => m.FirstRunOverlay),
+  { ssr: false },
+);
+
+const RewardOverlay = dynamic(
+  () => import("@/components/reward/RewardOverlay").then((m) => m.RewardOverlay),
+  { ssr: false },
+);
 
 /**
  * The single client shell around every route.
@@ -22,6 +47,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hasCompletedFirstRun = usePrototypeStore((s) => s.hasCompletedFirstRun);
 
   const showFirstRun = ready && !hasCompletedFirstRun;
+
+  // Warm the overlay chunks during idle time. They are needed within seconds of
+  // the first interaction, so fetching them at the first quiet moment keeps the
+  // bundle split without adding a visible delay later.
+  useEffect(() => {
+    if (!ready) return;
+    const warm = () => {
+      void import("@/components/onboarding/FirstRunOverlay");
+      void import("@/components/reward/RewardOverlay");
+      void import("@/components/onboarding/DayStartOverlay");
+      void import("@/components/onboarding/FinaleOverlay");
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(warm, 1200);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   return (
     <div className="app-frame">
