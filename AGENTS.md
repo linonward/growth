@@ -7,3 +7,108 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+> 上面那段 `nextjs-agent-rules` 由 `next dev` / `next build` 自动维护，
+> **不要翻译也不要删改** —— 与 Next.js 内置模板不一致时它会被重新写入。
+> 这一段之后的内容可以自由编辑。
+
+# 项目说明
+
+这是「7 天学生成长世界」的 Phase 0 原型，面向 8–12 岁学生。
+它只验证一件事，其余一律不做：
+
+> **孩子回来，是因为他想看看自己的世界接下来会变成什么样，而不是因为 App 催他打卡。**
+
+明确不做（spec §0）：登录注册、后端、AI、社交、排行榜、商城、金币、付费、
+老师端、家长后台、多宠物、多地图。持久化只用 `localStorage`。
+
+## 常用命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `pnpm dev` | 开发服务器（:3000） |
+| `pnpm verify` | CI 跑的全部检查 —— 收工前先跑这个 |
+| `pnpm check` | Biome 格式化 **+ 整理 import** |
+| `pnpm format` | **只**格式化 —— 见下面的坑 |
+| `pnpm test` / `pnpm e2e` | Vitest 单测 / Playwright 端到端 |
+| `pnpm typecheck` / `pnpm lint` | tsc / ESLint |
+
+**开发服务器要用 `localhost` 打开，不要用 `127.0.0.1`。**
+Next 16 会拦截不在 `allowedDevOrigins` 里的来源，页面会服务端渲染出来但永远不 hydration，
+看起来就是卡在启动页。
+
+**改完代码跑 `pnpm check`，不要只跑 `pnpm format`。**
+只有 `check` 会执行 Biome 的 organize-imports assist；手改的文件可能格式没问题，
+却依然过不了 `pnpm check:ci`（`pnpm verify` 跑的就是它）。
+
+**`next dev` 运行时不要 `rm -rf .next`。**
+这会毁掉 Turbopack 的 dev 产物，服务器会开始返回 500，直到重启才恢复。
+
+## 架构
+
+- **`src/domain/` 是所有阈值的唯一出处。** 纯函数，不依赖 React 和浏览器。
+  页面和组件必须调用 `getGrowthState()` / `getPetState()` / `getNextMilestone()`，
+  不要自己重写判断条件（spec §17）。domain 层有完整单测。
+- **`src/store/`** 是 Zustand + `persist`。派生值通过 `store/hooks.ts` 里的
+  memo 化 hook 暴露。
+- **`src/components/AppShell.tsx`** 是唯一的 client shell，负责 hydration、
+  首屏骨架，以及所有全屏时刻（首次进入、跨天欢迎、Reward、Day 7 终章、Debug 面板）。
+  各个页面只负责展示。
+- **`src/analytics/`** 存放事件日志，写在**独立的 storage key** 里，
+  绝不放进持久化的游戏状态 —— 原因见「存储」一节。
+
+### Day Gate 是承重结构，不要拆
+
+每个视觉里程碑都取「能量达到了」和「今天允许到哪」两者中**较弱**的一个。
+没有 Day Gate，高完成度的孩子第一天就会看完整个故事，实验也就无法测量
+「第二天是否还会回来」。
+
+Day 7 还额外要求**当天有行动**：这样三个事件（开花 → 进化 → 开门）是在完成目标时播放，
+而不是在跨天的一瞬间 —— 即使孩子带着 180 能量进入 Day 7 也一样。
+
+`tests/domain/*.test.ts` 把这些表格钉死了，改动前先看测试。
+
+## 容易踩的坑
+
+**六个页面全是 client component，这是有意为之。**
+所有数据都来自 `localStorage`，服务端没有真实内容可渲染。
+首屏 HTML 是「按路由的骨架（`components/ui/Skeletons.tsx`）+ 导航」，真实数据在
+hydration 之后才到。不要试图把内容做成服务端渲染 —— 没有东西可渲染。
+
+**zustand v5 通过 `useSyncExternalStore` 取值，selector 每次返回新对象会让 React 无限循环。**
+请使用 `store/hooks.ts` 里 memo 化的 hook。确实需要派生对象时，
+用 `useMemo` 从基本类型的选择结果里算出来。
+
+**CSS 的 `transform` 会覆盖 SVG 的 `transform` 属性。**
+同时带 `.anim-*` 动画类和 SVG `translate` 的元素，会静默塌陷到原点。
+把**定位**放在外层 `<g>`、**动画**放在内层 `<g>`。
+`e2e` 里有专门的回归测试守着这点。
+
+**存储是分开的，而且每次访问都包了 try/catch。**
+游戏状态在 `growth-world-prototype-v1`；事件日志在 `growth-world-analytics-v1`，
+写入去抖 800ms，并在 `pagehide` / `visibilitychange` 时 flush。
+`localStorage` 在 Safari 无痕模式和配额超限时会抛异常，埋点绝不能因此弄挂应用。
+`resetPrototype` 会**故意保留**日志并追加一条 `prototype_reset` ——
+Debug 按钮很容易误触，丢数据比多留几天历史更糟。
+
+**`data-testid` 归 e2e 所有。**
+测试覆盖完整 Day 1 → 7 流程、Day Gate、导航几何、首屏行为。
+改样式时请保留 testid，以及导航的结构（整格链接、≥44×44 点击区）。
+
+**Day 6 的神秘小门是 anticipation 实验的一部分：当天无论完成多少任务都不能打开。**
+
+**文案规则（spec §1，P4/P5）。** 不要出现 作业 / 检查 / 家长任务 / 处罚 / 没完成 /
+失败；改用 今日成长 / 我的目标 / 成长能量 / 今天做到了 / 下一次变化。
+没完成任何一天都不会被惩罚 —— 世界不会死、不会枯萎、不会生病。
+`tests/domain/milestone.test.ts` 会断言这些禁用词没有混进来。
+
+## 部署
+
+Vercel，从本地目录部署：`vercel deploy --prod --scope linonward`。
+项目已 link（`.vercel/` 已 gitignore）。
+
+`.vercelignore` 是必须的：否则 CLI 会把本地 `.next` 一起上传，那是几百 MB。
+
+**目前没有接 Git 自动部署** —— Vercel 账号是 `linonward2026`，
+而仓库在 `linonward` 名下，Vercel 没有对应的 GitHub App 权限。
+在 Vercel 控制台 → Settings → Git 连一次即可；在那之前每次都得手动 deploy。

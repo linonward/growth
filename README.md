@@ -32,8 +32,8 @@ pnpm dev          # http://localhost:3000
 | `pnpm format:check` | 只检查格式（CI 用） |
 | `pnpm check` | 格式化 + 整理 import |
 | `pnpm check:ci` | 只检查，不写回 |
-| `pnpm test` | Vitest 单元测试（domain + store） |
-| `pnpm e2e` | Playwright 端到端测试（7 天完整流程） |
+| `pnpm test` | Vitest 单元测试（domain + store，103 个） |
+| `pnpm e2e` | Playwright 端到端测试（11 个，含完整 7 天流程） |
 | `pnpm typecheck` | TypeScript 检查 |
 | `pnpm lint` | ESLint |
 | `pnpm verify` | check:ci + typecheck + lint + test + build |
@@ -50,7 +50,9 @@ pnpm dev          # http://localhost:3000
   `@import "tailwindcss"` / `@theme`。
 - `.vscode/settings.json` 已把 Biome 设为默认 formatter 并开启保存时格式化。
 
-> 注意：改完代码后请跑一次 `pnpm format`，`pnpm verify` 会因为格式不一致而失败。
+> ⚠️ 改完代码请跑 **`pnpm check`**，不要只跑 `pnpm format`。
+> `format` 只做格式化，**不会**整理 import，而 `pnpm verify` / `check:ci` 会检查
+> import 顺序 —— 只跑 `format` 依然会失败。稳妥做法是直接 `pnpm verify`。
 
 ---
 
@@ -83,16 +85,27 @@ src/
 ├── components/
 │   ├── AppShell.tsx         # 唯一的 client shell：hydration + 所有全屏时刻
 │   ├── world/               # WorldScene + sprites（纯 SVG 分层）
-│   ├── growth/ reward/ onboarding/ navigation/ debug/ ui/
+│   ├── ui/
+│   │   ├── icons.tsx        # 自绘 SVG 图标集
+│   │   ├── Skeletons.tsx    # 首屏骨架（按路由）
+│   │   └── primitives.tsx   # Card / Button / ProgressBar / Chip
+│   ├── growth/ reward/ onboarding/ navigation/ debug/
 ├── domain/                  # 纯函数，无 React / 浏览器依赖
 │   ├── growth.ts pet.ts plant.ts world.ts milestone.ts reward.ts types.ts
 ├── data/                    # goals.ts（5 个预设目标）days.ts（Day1–7 剧本）
 ├── store/                   # Zustand + persist + 派生 hooks
-└── analytics/               # 事件与导出 JSON 组装
+└── analytics/
+    ├── events.ts            # 事件构造与上限
+    ├── persistence.ts       # 独立 key + 去抖写入
+    └── export.ts            # 实验 JSON 组装
 ```
 
 **状态计算原则（spec §17）**：所有阈值逻辑集中在 `domain/`，页面只调用
 `getGrowthState(day, totalEnergy, todayEnergy)` 等函数，不散落判断。
+
+> 改代码前建议先看 [`AGENTS.md`](AGENTS.md)：里面记录了架构约束和几个容易踩的坑
+> （zustand v5 的 selector 稳定性、CSS transform 会覆盖 SVG transform、
+> localStorage 必须包 try/catch 等）。
 
 ---
 
@@ -259,12 +272,40 @@ Day 6 是刻意的 anticipation 实验：小门出现，但当天无论完成多
 
 ---
 
+## 部署
+
+线上地址：**https://growth.linonward.com**（Vercel，`linonward/growth` 项目）
+
+```bash
+vercel deploy --prod --scope linonward   # 生产
+vercel deploy --scope linonward          # 预览
+```
+
+`.vercelignore` 是必须的：没有它 CLI 会把本地的 `.next` 一起上传，那是几百 MB。
+
+**目前没有接 Git 自动部署** —— Vercel 账号是 `linonward2026`，而仓库在 `linonward`
+名下，Vercel 没有对应的 GitHub App 权限，`vercel git connect` 会失败。
+在 Vercel 控制台 → Settings → Git 连一次即可，在那之前每次都要手动 deploy。
+
+> 因为部署走的是**本地目录**而不是远程仓库，线上会比 `origin/main` 新 ——
+> 记得及时 push，否则 GitHub 和线上会不一致。
+
+---
+
 ## 技术栈
 
 Next.js 16（App Router / Turbopack）· TypeScript · Tailwind CSS 4 ·
 Framer Motion · Zustand（persist → localStorage）· Vitest · Playwright
 
 无数据库、无 API、无鉴权。
+
+两个值得注意的点：
+
+- **Framer Motion 是懒加载的**，只在四个全屏 overlay 分块里，首屏不加载它
+  （省 146 KB）。世界场景的 Day 7 推镜用的是 CSS transition。
+- **所有页面都是 client component**，因为数据全部来自 localStorage，服务端没有
+  可渲染的内容。首屏是「按路由的骨架 + 导航」，不是真实数据 —— 详见
+  [`AGENTS.md`](AGENTS.md)。
 
 ---
 
