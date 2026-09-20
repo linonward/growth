@@ -1,36 +1,210 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 7 天学生成长世界 · Phase 0 Prototype
 
-## Getting Started
+验证一个核心闭环：
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```text
+选择现实目标 → 完成目标 → 获得成长能量 → 宠物 / 植物 / 世界发生变化
+→ 产生期待 → 第二天主动回来
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Phase 0 **不做**：登录注册、后端、AI、社交、排行榜、商城、金币、付费、老师端、家长后台。
+所有数据保存在 `localStorage`。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 快速开始
 
-## Learn More
+```bash
+pnpm install
+pnpm dev          # http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+> 请使用 `localhost` 而不是 `127.0.0.1` 打开，否则 Next 16 会拦截 dev 资源。
+> 已在 `next.config.ts` 中通过 `allowedDevOrigins` 放行这两个 host。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 常用命令
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| 命令 | 说明 |
+| --- | --- |
+| `pnpm dev` | 开发服务器 |
+| `pnpm build` / `pnpm start` | 生产构建 / 启动 |
+| `pnpm format` | Biome 格式化并写回 |
+| `pnpm format:check` | 只检查格式（CI 用） |
+| `pnpm check` | 格式化 + 整理 import |
+| `pnpm check:ci` | 只检查，不写回 |
+| `pnpm test` | Vitest 单元测试（domain + store） |
+| `pnpm e2e` | Playwright 端到端测试（7 天完整流程） |
+| `pnpm typecheck` | TypeScript 检查 |
+| `pnpm lint` | ESLint |
+| `pnpm verify` | check:ci + typecheck + lint + test + build |
 
-## Deploy on Vercel
+### 代码格式
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+格式化用 **Biome**，lint 用 **ESLint** —— 两者职责不重叠：
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `biome.json` 里 `linter.enabled: false`，避免同一问题被两个工具重复报错
+  （`eslint-config-next` 已覆盖 Next/React 规则）。
+- Biome 负责：格式化 + 整理 import（assist）。
+- 缩进 2 空格、双引号、分号、行宽 90，与现有代码风格一致。
+- `globals.css` 需要 `css.parser.tailwindDirectives: true` 才能解析 Tailwind v4 的
+  `@import "tailwindcss"` / `@theme`。
+- `.vscode/settings.json` 已把 Biome 设为默认 formatter 并开启保存时格式化。
+
+> 注意：改完代码后请跑一次 `pnpm format`，`pnpm verify` 会因为格式不一致而失败。
+
+---
+
+## 页面
+
+仅 6 个核心页面，底部导航 4 个入口。
+
+| Route | 页面 | 说明 |
+| --- | --- | --- |
+| `/` | 我的世界 | 最重要：世界场景 + 今日成长 + 下一步期待 |
+| `/goals` | 今日成长 | 5 选 3 预设目标 → 任务列表 → 完成确认 |
+| `/pet` | 我的伙伴 | 宠物状态、命名、最近发生、下一次成长 |
+| `/plant` | 成长植物 | 阶段、成长记录、距下一次成长 |
+| `/history` | 成长轨迹 | 7 天故事时间线（无排名） |
+| `/reward` | 完成反馈 | 实现为全屏 Overlay，不是独立路由 |
+| `/debug/export` | 实验数据导出 | JSON 下载（AC5） |
+
+「成长轨迹」从首页 / 成长页进入。
+
+---
+
+## 目录结构
+
+```text
+src/
+├── app/                     # 路由（全部为 client component，数据来自 localStorage）
+│   ├── page.tsx             # 我的世界
+│   ├── goals/ pet/ plant/ history/
+│   └── debug/export/        # 实验数据导出
+├── components/
+│   ├── AppShell.tsx         # 唯一的 client shell：hydration + 所有全屏时刻
+│   ├── world/               # WorldScene + sprites（纯 SVG 分层）
+│   ├── growth/ reward/ onboarding/ navigation/ debug/ ui/
+├── domain/                  # 纯函数，无 React / 浏览器依赖
+│   ├── growth.ts pet.ts plant.ts world.ts milestone.ts reward.ts types.ts
+├── data/                    # goals.ts（5 个预设目标）days.ts（Day1–7 剧本）
+├── store/                   # Zustand + persist + 派生 hooks
+└── analytics/               # 事件与导出 JSON 组装
+```
+
+**状态计算原则（spec §17）**：所有阈值逻辑集中在 `domain/`，页面只调用
+`getGrowthState(day, totalEnergy, todayEnergy)` 等函数，不散落判断。
+
+---
+
+## 关键设计
+
+### Day Gate
+
+宠物 / 植物的**视觉大事件**由「能量阈值」和「当天上限」共同决定，取两者中较弱的一个：
+
+| Day | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Pet（上限） | wiggling_egg | cracked_egg | baby | baby | young | young | evolved |
+| Plant（上限） | sprout | leaf | young_plant | young_plant | bud | tree | bloom |
+
+没有 Day Gate，高完成度学生第一天就会看完整个故事，实验也就无法测量
+「第二天是否还会回来」。
+
+**Day 7 额外需要当天行动**：即使带着 180 能量进入 Day 7，也需要完成当天一个目标，
+三个事件（开花 → 进化 → 开门）才会播放 —— 对应 spec §11「完成最终任务后」。
+
+### 世界场景
+
+纯 SVG 分层，无 Canvas（spec §3）：
+
+```text
+Background → Sky → Sun → Clouds → Ground → NewArea → Rock → Flowers
+→ Plant → Pet → Butterfly → MysteryGate
+```
+
+Day 7 时相机左移 80px，露出右侧新区域（小溪、小屋、山丘）——
+「地图变大了」这一下是真实可感的。
+
+> 注意：CSS `transform` 会覆盖 SVG 的 `transform` 属性。
+> 因此**定位**在父 `<g transform="translate(...)">`，
+> **动画**在子 `<g className="anim-*">`，两者不能写在同一个元素上。
+> `e2e` 中有专门的回归测试守护这一点。
+
+### 原则（spec §1）
+
+- **P1 Growth > Points**：第一反馈是世界变化，数值只作辅助。
+- **P2 每天世界必须变化**：花 / 蝴蝶 / 神秘门都是按天解锁，不依赖完成任务。
+- **P3 永远有下一步**：`getNextMilestone()` 对任意状态都返回可执行的下一步（AC3，有测试覆盖）。
+- **P4 Student-first**：文案测试断言不出现「作业 / 失败 / 没完成 / 检查 / 处罚」等词。
+- **P5 不制造失败焦虑**：不完成不会枯萎、不会生病，第二天继续即可。
+
+### 主动性测量（spec §15）
+
+每天第一次完成任务后，在 Reward 第 4 段出现一次极轻量的二选一：
+
+```text
+今天是谁先想到打开成长岛的？ [ 我自己想起来的 ] [ 有人提醒我的 ]
+```
+
+记录为 `initiative: "self" | "prompted"`，Day 4 也会保留。
+
+---
+
+## 测试模式
+
+真实等待 7 天太低效，因此提供隐藏 Debug Panel：
+
+```text
+http://localhost:3000/?debug=1
+```
+
+包含 Current Day `[-] Day N [+]`、Energy `[-10] [+10]`、
+`Trigger Reward`、`Trigger Day7 Event`、`Download Data`、`Reset Prototype`。
+正式实验时不带 `?debug=1` 即可完全隐藏。
+
+---
+
+## Analytics
+
+事件记录在 store 中并随 `localStorage` 持久化，通过 `Download Experiment Data`
+或 `/debug/export` 手动导出 JSON（spec §19）。
+
+导出内容包含 AC5 要求的全部指标：
+打开次数、完成任务数量、自主 / 被提醒、Day 留存、Continue Intent，
+以及 `selfInitiatedRate`（自主率）。
+
+---
+
+## 验收标准对照（spec §27）
+
+| AC | 状态 |
+| --- | --- |
+| AC1 10 岁学生不看教程也能理解怎么让世界继续成长 | 首页常驻 Next Milestone + 单一 CTA |
+| AC2 完成目标 5 秒内得到视觉反馈 | Reward 4 段流程，首段 900ms |
+| AC3 首页永远能回答「下一步做什么」 | `getNextMilestone()` 穷举测试覆盖 |
+| AC4 Day1 ≠ Day3 ≠ Day7 | 见 `docs/screens/`，并有 E2E 场景位置回归 |
+| AC5 能准确收集 5 项实验数据 | `/debug/export` + `buildExportPayload()` |
+
+### 画面差异
+
+| Day 1 | Day 3 | Day 7 |
+| --- | --- | --- |
+| ![Day 1](docs/screens/day-1.png) | ![Day 3](docs/screens/day-3.png) | ![Day 7](docs/screens/day-7.png) |
+
+---
+
+## 技术栈
+
+Next.js 16（App Router / Turbopack）· TypeScript · Tailwind CSS 4 ·
+Framer Motion · Zustand（persist → localStorage）· Vitest · Playwright
+
+无数据库、无 API、无鉴权。
+
+---
+
+## Phase 0 之后
+
+代码结构允许后续扩展 Pet System / Plant System / World Building / Growth Graph /
+Goal System / Family / AI / Long-term Progression，但 Phase 0 只证明一件事：
+
+> **孩子不是因为 App 要求他打卡而回来，而是因为他想看看「自己的世界接下来会变成什么样」。**

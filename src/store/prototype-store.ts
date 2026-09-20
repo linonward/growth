@@ -1,0 +1,619 @@
+"use client";
+
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+
+import { appendEvent, createEvent } from "@/analytics/events";
+import { buildExportPayload, type ExperimentExport } from "@/analytics/export";
+import { GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
+import {
+  DEFAULT_PET_NAME,
+  DEFAULT_WORLD_NAME,
+  ENERGY_PER_GOAL,
+  MAX_GOALS_PER_DAY,
+  MAX_TOTAL_ENERGY,
+  STORAGE_KEY,
+} from "@/domain/constants";
+import {
+  calendarDayFromStart,
+  energyFromCompletedGoals,
+  getGrowthState,
+} from "@/domain/growth";
+import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
+import { describeRewardChange, detectDayMilestone } from "@/domain/reward";
+import type {
+  AnalyticsEvent,
+  AnalyticsEventName,
+  DailyCheckIn,
+  DailyGoal,
+  GoalTemplate,
+  PetSpecies,
+  RewardMoment,
+  UserProfile,
+} from "@/domain/types";
+
+export interface PrototypeStoreState {
+  // ---- persisted ----
+  hasCompletedFirstRun: boolean;
+  profile: UserProfile;
+  currentDay: number;
+  /** Debug-only override that wins over the calendar day. */
+  dayOverride: number | null;
+  /** Debug-only energy nudge, on top of the energy earned from real goals. */
+  debugEnergyDelta: number;
+  lastSeenDay: number | null;
+  goalsByDay: Record<number, DailyGoal[]>;
+  checkIns: DailyCheckIn[];
+  seenMilestoneIds: string[];
+  /** True once the student has explicitly confirmed the pet's name. */
+  hasNamedPet: boolean;
+  day7Completed: boolean;
+  continueRequested: boolean;
+  events: AnalyticsEvent[];
+
+  // ---- transient (never persisted) ----
+  hasHydrated: boolean;
+  activeReward: RewardMoment | null;
+  activeFinale: boolean;
+  pendingDayStart: number | null;
+  pendingInitiativeDay: number | null;
+
+  // ---- actions ----
+  setHydrated: (value: boolean) => void;
+  completeFirstRun: (input: {
+    worldName?: string;
+    petName?: string;
+    petSpecies?: PetSpecies;
+    now?: Date;
+  }) => void;
+  renamePet: (name: string) => void;
+  renameWorld: (name: string) => void;
+  selectGoals: (day: number, templateIds: string[]) => void;
+  completeGoal: (goalId: string) => void;
+  dismissReward: () => void;
+  dismissFinale: () => void;
+  /** Re-arms the Day 7 finale if the student never got to see it. */
+  resumeFinaleIfNeeded: () => void;
+  answerInitiative: (day: number, value: "self" | "prompted") => void;
+  recordDayOpened: (day: number) => void;
+  syncDay: (now?: Date) => void;
+  dismissDayStart: () => void;
+  requestContinue: () => void;
+  markMilestoneSeen: (id: string) => void;
+  logEvent: (name: AnalyticsEventName, props?: AnalyticsEvent["props"]) => void;
+  buildExport: () => ExperimentExport;
+  // debug
+  debugSetDay: (day: number) => void;
+  debugAdjustEnergy: (delta: number) => void;
+  debugTriggerReward: () => void;
+  debugTriggerDay7Event: () => void;
+  resetPrototype: () => void;
+}
+
+function defaultProfile(now = new Date()): UserProfile {
+  return {
+    worldName: DEFAULT_WORLD_NAME,
+    petName: DEFAULT_PET_NAME,
+    petSpecies: "fox",
+    startedAt: now.toISOString(),
+  };
+}
+
+function initialPersistedState() {
+  const now = new Date();
+  return {
+    hasCompletedFirstRun: false,
+    profile: defaultProfile(now),
+    currentDay: 1,
+    dayOverride: null as number | null,
+    debugEnergyDelta: 0,
+    lastSeenDay: null as number | null,
+    goalsByDay: {} as Record<number, DailyGoal[]>,
+    checkIns: [] as DailyCheckIn[],
+    seenMilestoneIds: [] as string[],
+    hasNamedPet: false,
+    day7Completed: false,
+    continueRequested: false,
+    events: [] as AnalyticsEvent[],
+  };
+}
+
+/** Build the DailyGoal records for one day from template ids. */
+function makeGoals(day: number, templateIds: readonly string[]): DailyGoal[] {
+  return templateIds
+    .slice(0, MAX_GOALS_PER_DAY)
+    .filter((id) => getGoalTemplate(id) !== undefined)
+    .map((templateId) => ({
+      id: `d${day}-${templateId}`,
+      day,
+      templateId,
+      completed: false,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// Selectors. Pages must read derived values through these, never recompute.
+// ---------------------------------------------------------------------------
+
+function allGoals(state: PrototypeStoreState): DailyGoal[] {
+  return Object.values(state.goalsByDay).flat();
+}
+
+export function selectCompletedGoalCount(state: PrototypeStoreState): number {
+  return allGoals(state).filter((g) => g.completed).length;
+}
+
+export function selectTotalEnergy(state: PrototypeStoreState): number {
+  const earned = energyFromCompletedGoals(selectCompletedGoalCount(state));
+  const total = earned + state.debugEnergyDelta;
+  return Math.min(MAX_TOTAL_ENERGY, Math.max(0, total));
+}
+
+/** Stable empty array so selectors never hand React a fresh reference. */
+const EMPTY_GOALS: DailyGoal[] = [];
+
+export function selectTodayGoals(state: PrototypeStoreState): DailyGoal[] {
+  return state.goalsByDay[state.currentDay] ?? EMPTY_GOALS;
+}
+
+export function selectTodayCompletedCount(state: PrototypeStoreState): number {
+  return selectTodayGoals(state).filter((g) => g.completed).length;
+}
+
+export function selectTodayEnergy(state: PrototypeStoreState): number {
+  return selectTodayCompletedCount(state) * ENERGY_PER_GOAL;
+}
+
+export function selectGrowth(state: PrototypeStoreState) {
+  return getGrowthState(
+    state.currentDay,
+    selectTotalEnergy(state),
+    selectTodayEnergy(state),
+  );
+}
+
+export function selectNextMilestone(state: PrototypeStoreState): NextMilestone {
+  return getNextMilestone({
+    day: state.currentDay,
+    totalEnergy: selectTotalEnergy(state),
+    todayEnergy: selectTodayEnergy(state),
+    selectedGoalCount: selectTodayGoals(state).length,
+    completedTodayCount: selectTodayCompletedCount(state),
+    day7Completed: state.day7Completed,
+    petName: state.profile.petName,
+  });
+}
+
+/** Completed-goal counts per goal category, for the plant page. */
+export function selectCategoryCounts(state: PrototypeStoreState): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const goal of allGoals(state)) {
+    if (!goal.completed) continue;
+    counts[goal.templateId] = (counts[goal.templateId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export function selectAvailableTemplates(): readonly GoalTemplate[] {
+  return GOAL_TEMPLATES;
+}
+
+export const usePrototypeStore = create<PrototypeStoreState>()(
+  persist(
+    (set, get) => ({
+      ...initialPersistedState(),
+
+      hasHydrated: false,
+      activeReward: null,
+      activeFinale: false,
+      pendingDayStart: null,
+      pendingInitiativeDay: null,
+
+      setHydrated: (value) => set({ hasHydrated: value }),
+
+      completeFirstRun: ({ worldName, petName, petSpecies, now } = {}) => {
+        const at = now ?? new Date();
+        set((state) => ({
+          hasCompletedFirstRun: true,
+          profile: {
+            ...state.profile,
+            worldName: worldName?.trim() || DEFAULT_WORLD_NAME,
+            petName: petName?.trim() || DEFAULT_PET_NAME,
+            petSpecies: petSpecies ?? state.profile.petSpecies,
+            startedAt: at.toISOString(),
+          },
+          currentDay: 1,
+          lastSeenDay: 1,
+          pendingDayStart: null,
+        }));
+        get().logEvent("prototype_started", {
+          worldName: worldName?.trim() || DEFAULT_WORLD_NAME,
+          petSpecies: petSpecies ?? "fox",
+        });
+      },
+
+      renamePet: (name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((state) => ({
+          profile: { ...state.profile, petName: trimmed },
+          hasNamedPet: true,
+        }));
+      },
+
+      renameWorld: (name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((state) => ({ profile: { ...state.profile, worldName: trimmed } }));
+      },
+
+      selectGoals: (day, templateIds) => {
+        const state = get();
+        const existing = state.goalsByDay[day] ?? [];
+        // Once a goal is done the day is locked in — this keeps the record honest.
+        if (existing.some((g) => g.completed)) return;
+        const goals = makeGoals(day, templateIds);
+        set({ goalsByDay: { ...state.goalsByDay, [day]: goals } });
+        for (const goal of goals) {
+          get().logEvent("goal_selected", { day, templateId: goal.templateId });
+        }
+      },
+
+      completeGoal: (goalId) => {
+        const state = get();
+        const day = state.currentDay;
+        const goals = state.goalsByDay[day] ?? [];
+        const goal = goals.find((g) => g.id === goalId);
+        if (!goal) return;
+        // A goal can only be completed once — re-taps are ignored entirely.
+        if (goal.completed) return;
+
+        const beforeEnergy = selectTotalEnergy(state);
+        const completedBefore = goals.filter((g) => g.completed).length;
+
+        const completedAt = new Date().toISOString();
+        const nextGoals = goals.map((g) =>
+          g.id === goalId ? { ...g, completed: true, completedAt } : g,
+        );
+
+        const afterEnergy = Math.max(
+          0,
+          Math.min(
+            MAX_TOTAL_ENERGY,
+            energyFromCompletedGoals(selectCompletedGoalCount(state) + 1) +
+              state.debugEnergyDelta,
+          ),
+        );
+
+        const todayEnergyAfter = (completedBefore + 1) * ENERGY_PER_GOAL;
+
+        const change = describeRewardChange(
+          day,
+          beforeEnergy,
+          state.profile.petName,
+          todayEnergyAfter,
+        );
+        const milestone = detectDayMilestone(
+          day,
+          beforeEnergy,
+          state.profile.petName,
+          todayEnergyAfter,
+        );
+
+        const reward: RewardMoment = {
+          goalId,
+          templateId: goal.templateId,
+          day,
+          change,
+          milestone,
+          isFinale: milestone?.id === "day7_finale",
+          totalEnergyAfter: afterEnergy,
+          todayEnergyAfter,
+        };
+
+        // Spec section 15: ask the initiative question after the day's first
+        // completion, and only once per day.
+        const checkIn = state.checkIns.find((c) => c.day === day);
+        const shouldAskInitiative =
+          completedBefore === 0 && checkIn?.initiative === undefined;
+
+        set({
+          goalsByDay: { ...state.goalsByDay, [day]: nextGoals },
+          activeReward: reward,
+          pendingInitiativeDay: shouldAskInitiative ? day : state.pendingInitiativeDay,
+          events: appendEvent(
+            state.events,
+            createEvent("goal_completed", day, {
+              templateId: goal.templateId,
+              target: change.target,
+              totalEnergyAfter: reward.totalEnergyAfter,
+              isMajor: change.isMajor,
+            }),
+          ),
+        });
+
+        if (milestone) {
+          set((s) => ({
+            events: appendEvent(
+              s.events,
+              createEvent("milestone_viewed", day, { id: milestone.id }),
+            ),
+          }));
+        }
+      },
+
+      dismissReward: () => {
+        const reward = get().activeReward;
+        set({ activeReward: null });
+        // Day 7 chains straight into the three-beat finale sequence.
+        if (reward?.isFinale) {
+          set({ activeFinale: true });
+        }
+      },
+
+      dismissFinale: () => {
+        const state = get();
+        if (!state.day7Completed) {
+          set((s) => ({
+            activeFinale: false,
+            day7Completed: true,
+            events: appendEvent(
+              s.events,
+              createEvent("day7_completed", s.currentDay, {
+                totalEnergy: selectTotalEnergy(s),
+              }),
+            ),
+          }));
+        } else {
+          set({ activeFinale: false });
+        }
+      },
+
+      resumeFinaleIfNeeded: () => {
+        const state = get();
+        if (state.day7Completed || state.activeFinale) return;
+        // The finale is transient UI state, so a student who closed the app
+        // mid-flow would otherwise never see the week's climax.
+        if (selectGrowth(state).worldState.newAreaUnlocked) {
+          set({ activeFinale: true });
+        }
+      },
+
+      answerInitiative: (day, value) => {
+        set((state) => {
+          const exists = state.checkIns.some((c) => c.day === day);
+          const checkIns = exists
+            ? state.checkIns.map((c) => (c.day === day ? { ...c, initiative: value } : c))
+            : [
+                ...state.checkIns,
+                { day, initiative: value, openedAt: new Date().toISOString() },
+              ];
+          return {
+            checkIns,
+            pendingInitiativeDay:
+              state.pendingInitiativeDay === day ? null : state.pendingInitiativeDay,
+            events: appendEvent(
+              state.events,
+              createEvent(
+                value === "self" ? "initiative_self" : "initiative_prompted",
+                day,
+              ),
+            ),
+          };
+        });
+      },
+
+      recordDayOpened: (day) => {
+        set((state) => {
+          const exists = state.checkIns.some((c) => c.day === day);
+          const checkIns = exists
+            ? state.checkIns
+            : [
+                ...state.checkIns,
+                { day, openedAt: new Date().toISOString() } as DailyCheckIn,
+              ];
+          return {
+            checkIns,
+            events: appendEvent(state.events, createEvent("app_opened", day)),
+          };
+        });
+      },
+
+      syncDay: (now = new Date()) => {
+        const state = get();
+        const calendar = calendarDayFromStart(state.profile.startedAt, now);
+        const next = state.dayOverride ?? calendar;
+
+        if (state.lastSeenDay === null) {
+          set({ currentDay: next, lastSeenDay: next });
+          return;
+        }
+        if (next === state.lastSeenDay) {
+          if (next !== state.currentDay) set({ currentDay: next });
+          return;
+        }
+
+        const rolled = next > state.lastSeenDay;
+        set({
+          currentDay: next,
+          lastSeenDay: next,
+          // Day 2+ gets the gentle "something changed overnight" welcome.
+          pendingDayStart: rolled && next > 1 ? next : null,
+          events: appendEvent(
+            state.events,
+            createEvent("day_advanced", next, { from: state.lastSeenDay }),
+          ),
+        });
+      },
+
+      dismissDayStart: () => set({ pendingDayStart: null }),
+
+      requestContinue: () => {
+        set((state) => ({
+          continueRequested: true,
+          events: appendEvent(
+            state.events,
+            createEvent("continue_requested", state.currentDay),
+          ),
+        }));
+      },
+
+      markMilestoneSeen: (id) => {
+        set((state) =>
+          state.seenMilestoneIds.includes(id)
+            ? state
+            : { seenMilestoneIds: [...state.seenMilestoneIds, id] },
+        );
+      },
+
+      logEvent: (name, props) => {
+        set((state) => ({
+          events: appendEvent(state.events, createEvent(name, state.currentDay, props)),
+        }));
+      },
+
+      buildExport: () => {
+        const state = get();
+        return buildExportPayload({
+          profile: state.profile,
+          goalsByDay: state.goalsByDay,
+          checkIns: state.checkIns,
+          events: state.events,
+          day7Completed: state.day7Completed,
+          totalEnergy: selectTotalEnergy(state),
+          currentDay: state.currentDay,
+        });
+      },
+
+      debugSetDay: (day) => {
+        const clamped = Math.min(7, Math.max(1, Math.floor(day)));
+        set((state) => ({
+          dayOverride: clamped,
+          currentDay: clamped,
+          lastSeenDay: clamped,
+          events: appendEvent(
+            state.events,
+            createEvent("day_advanced", clamped, { debug: true }),
+          ),
+        }));
+      },
+
+      debugAdjustEnergy: (delta) => {
+        set((state) => {
+          const current = selectTotalEnergy(state);
+          const next = Math.min(MAX_TOTAL_ENERGY, Math.max(0, current + delta));
+          const earned = energyFromCompletedGoals(selectCompletedGoalCount(state));
+          return { debugEnergyDelta: next - earned };
+        });
+      },
+
+      debugTriggerReward: () => {
+        const state = get();
+        const day = state.currentDay;
+        // Make sure there is something to complete.
+        if ((state.goalsByDay[day] ?? []).length === 0) {
+          get().selectGoals(
+            day,
+            GOAL_TEMPLATES.slice(0, MAX_GOALS_PER_DAY).map((t) => t.id),
+          );
+        }
+        const goals = get().goalsByDay[day] ?? [];
+        const next = goals.find((g) => !g.completed);
+        if (next) {
+          get().completeGoal(next.id);
+          return;
+        }
+        // Everything is already done — still demo the reward animation by
+        // nudging the energy and synthesising the moment.
+        const beforeEnergy = selectTotalEnergy(get());
+        if (beforeEnergy >= MAX_TOTAL_ENERGY) return;
+        get().debugAdjustEnergy(ENERGY_PER_GOAL);
+        const change = describeRewardChange(
+          day,
+          beforeEnergy,
+          state.profile.petName,
+          selectTodayEnergy(get()),
+        );
+        const milestone = detectDayMilestone(
+          day,
+          beforeEnergy,
+          state.profile.petName,
+          selectTodayEnergy(get()),
+        );
+        set({
+          activeReward: {
+            goalId: `debug-${Date.now()}`,
+            templateId: goals[0]?.templateId ?? "reading",
+            day,
+            change,
+            milestone,
+            isFinale: milestone?.id === "day7_finale",
+            totalEnergyAfter: beforeEnergy + ENERGY_PER_GOAL,
+            todayEnergyAfter: selectTodayEnergy(get()),
+          },
+        });
+      },
+
+      debugTriggerDay7Event: () => {
+        // Park at Day 7 with 170 energy so one more goal crosses the threshold.
+        set({ dayOverride: 7, currentDay: 7, lastSeenDay: 7, pendingDayStart: null });
+        if ((get().goalsByDay[7] ?? []).length === 0) {
+          get().selectGoals(
+            7,
+            GOAL_TEMPLATES.slice(0, MAX_GOALS_PER_DAY).map((t) => t.id),
+          );
+        }
+        const completedCount = selectCompletedGoalCount(get());
+        set({ debugEnergyDelta: 170 - energyFromCompletedGoals(completedCount) });
+
+        const goal = (get().goalsByDay[7] ?? []).find((g) => !g.completed);
+        if (goal) {
+          get().completeGoal(goal.id);
+          return;
+        }
+        // Nothing left to complete — force the finale state outright.
+        set({
+          debugEnergyDelta: 180 - energyFromCompletedGoals(completedCount),
+          activeFinale: true,
+          events: appendEvent(
+            get().events,
+            createEvent("milestone_viewed", 7, { id: "day7_finale", debug: true }),
+          ),
+        });
+      },
+
+      resetPrototype: () => {
+        const now = new Date();
+        set((state) => ({
+          ...initialPersistedState(),
+          // Keep who they are, but put the world back to Day 1.
+          hasCompletedFirstRun: state.hasCompletedFirstRun,
+          profile: { ...state.profile, startedAt: now.toISOString() },
+          events: appendEvent(state.events, createEvent("prototype_reset", 1)),
+        }));
+      },
+    }),
+    {
+      name: STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      // The app is fully client-rendered from localStorage, so hydration is
+      // triggered explicitly on mount to keep SSR output stable.
+      skipHydration: true,
+      partialize: (state) => ({
+        hasCompletedFirstRun: state.hasCompletedFirstRun,
+        profile: state.profile,
+        currentDay: state.currentDay,
+        dayOverride: state.dayOverride,
+        debugEnergyDelta: state.debugEnergyDelta,
+        lastSeenDay: state.lastSeenDay,
+        goalsByDay: state.goalsByDay,
+        checkIns: state.checkIns,
+        seenMilestoneIds: state.seenMilestoneIds,
+        hasNamedPet: state.hasNamedPet,
+        day7Completed: state.day7Completed,
+        continueRequested: state.continueRequested,
+        events: state.events,
+      }),
+    },
+  ),
+);
