@@ -177,14 +177,145 @@ http://localhost:3000/?debug=1
 
 ---
 
-## Analytics
+## Analytics（P0-EXP-01）
 
-事件记录在 store 中并随 `localStorage` 持久化，通过 `Download Experiment Data`
-或 `/debug/export` 手动导出 JSON（spec §19）。
+分析系统用 **PostHog**，不做自建 dashboard —— Phase 0 要的是答案，不是工程。
 
-导出内容包含 AC5 要求的全部指标：
-打开次数、完成任务数量、自主 / 被提醒、Day 留存、Continue Intent，
-以及 `selfInitiatedRate`（自主率）。
+### 配置
+
+```bash
+cp .env.example .env.local
+# 填入 NEXT_PUBLIC_POSTHOG_KEY（PostHog 项目的 project API key）
+```
+
+**事件走同源反向代理，不直连 PostHog。** `next.config.ts` 把 `/ingest/*`
+rewrite 到 PostHog（US/EU 都按 `NEXT_PUBLIC_POSTHOG_HOST` 推导）。
+这是 PostHog 官方 Next.js 指南里专门的一节：uBlock 这类拦截器内置了
+`posthog.com` 规则，直连会被静默丢掉 —— 那意味着跑在装了拦截器的家庭设备上时，
+实验数据会**悄悄变成零**。走自己的域名就没这个问题。
+
+**不配置也能跑**：所有 tracker 变成 no-op，应用完全正常，本地事件日志照常记录，
+`/debug/export` 依然可导出。这样开发和 e2e 不需要任何 PostHog 账号。
+
+### 架构：业务层不直接调用 PostHog
+
+```text
+src/analytics/
+├── participant.ts   # 匿名 UUID（本地持久化）
+├── properties.ts    # 公共属性 + EXPERIMENT_VERSION
+├── client.ts        # 唯一投递事件的地方
+├── track.ts         # 业务层唯一入口：trackGoalCompleted({...})
+├── events.ts        # 本地事件日志
+└── export.ts        # 离线 JSON 导出
+```
+
+业务代码只写 `trackGoalCompleted({ goalType: 'reading', day: 3 })`，
+组件里**不允许**出现任何 PostHog 调用。以后换自建分析或加数仓，只改 `client.ts`。
+
+> **没有用 posthog-js。** 实测该 SDK（1.434.2）在**静态页面 + 官方预编译包 +
+> 最小配置 `{ api_host }`** 的情况下：能 init、能拉到 remote config、`capture()`
+> 正常返回，但**从不发出事件**（无 `/e/`、无 `/batch/`，`__request_queue` 始终为 0）。
+> 同一浏览器 `fetch` POST 到 PostHog 文档中的 `/batch/` 返回 200 且事件确实到达。
+> 既然 autocapture / session replay / feature flags / surveys 我们本来就全部关闭、
+> 事件表也是固定的 14 个，直接走 HTTP capture API 更简单、可验证，也少一个 50 KB 依赖。
+> 投递失败不会影响应用（`fetch` 的 rejection 被吞掉）。
+
+### 身份：匿名 participant UUID
+
+首次进入生成 `crypto.randomUUID()` 并持久化到 `growth-world-participant-v1`
+（独立 key，所以 Reset 不会换人），随后 `posthog.identify(participantId, { experiment_version })`。
+
+> **绝不 identify 真实身份。** 目标用户是 8–12 岁儿童，数据最小化从现在就要坚持：
+> 不要 email、手机号、真实姓名、学校。`identify()` 只接受那个 UUID。
+> `.env.example` 里也写明了不要加任何存放真实身份的变量。
+
+### 事件 Schema：14 个，只回答 6 个问题
+
+| Event | 关键属性 |
+| --- | --- |
+| `experiment_started` | `pet_species`, `world_name_set` |
+| `session_started` | — （配合 `experiment_day` 就是留存信号） |
+| `world_viewed` / `pet_viewed` / `plant_viewed` / `history_viewed` | `pet_state` / `plant_state` |
+| `goal_selected` | `goal_type` |
+| `goal_completed` | `goal_type`, `energy_earned`, `pet_state`, `plant_state`, `total_energy` |
+| `reward_viewed` | `goal_type`, `is_major`, `reward_target` |
+| `initiative_answered` | `initiative: 'self' \| 'prompted'` |
+| `milestone_viewed` | `milestone_id` |
+| `day_completed` | `goals_completed`, `energy_earned` |
+| `day7_completed` | `total_energy` |
+| `continue_requested` | `total_energy` |
+
+**所有事件**都自动带：
+
+```json
+{ "experiment_version": "phase0-v1", "experiment_day": 3 }
+```
+
+这是在 `createEvent()` 里统一合并的，不是每个调用点各写一遍 ——
+结构上不可能漏。
+
+### 两条设计纪律
+
+**① 属性优先于事件数量。** 不要 `reading_completed` / `study_completed` /
+`exercise_completed` 三个事件，而是 `goal_completed` + `goal_type`。
+同理 initiative 不要两个事件，而是 `initiative_answered` + `initiative`。
+
+**② 不要每个按钮埋一个点。** 事件列表是假设驱动的，只回答上面那 6 个问题。
+需要新维度时优先扩展已有事件的属性。
+
+### 在 PostHog 里建四个视图（AC ⑩）
+
+**1. Growth Loop Funnel** —— 核心闭环转化
+
+```text
+experiment_started → goal_selected → goal_completed → reward_viewed → world_viewed
+```
+
+如果 `goal_selected → goal_completed` 掉得厉害，要研究的是
+「为什么现实行为没有发生」，而不是去优化 Reward 动画。
+
+**2. Retention（D1–D7）** —— 比 Funnel 更重要
+
+用 `session_started` 做 retention，按 `experiment_day` 看。
+重点盯 **Day 3 → Day 4**：前三天新鲜感很强，真正的危险是 novelty cliff。
+
+**3. SAAR（North Star）** —— 自主发起率
+
+对 `initiative_answered` 按 `initiative` 做 breakdown：
+
+```text
+self / (self + prompted)
+```
+
+Phase 0 投资阈值暂定 **≥ 40%**。这是实验决策线，不是行业 benchmark。
+
+**4. Day 7 Continue Funnel** —— 需求信号
+
+```text
+day7_completed → continue_requested
+```
+
+### 隐私
+
+| | |
+| --- | --- |
+| Product Analytics | ✅ |
+| Anonymous ID | ✅ |
+| Funnels / Retention | ✅ |
+| Session Replay | ❌ 不引入（SDK 都没装，无从开启） |
+| Autocapture | ❌ 不存在：只发上面那 14 个事件 |
+| 真实身份 / 个人数据 | ❌ 不采集 |
+| URL / referrer / query string | ❌ 从不发送（payload 里根本没有这些字段） |
+| 请求目标 | 只发到自己的域名 `/ingest/*`，浏览器端不出现 `posthog.com` |
+
+Session Replay 对调试很诱人，但面对 8–12 岁儿童不能顺手打开 ——
+真要开，得先单独处理监护人同意、采集范围、输入遮罩、数据保留与合规。
+
+### 离线兜底
+
+事件同时在本地记一份，`/debug/export` 或 `Download Experiment Data` 可导出 JSON，
+其中 `participantId` 与 PostHog 收到的是同一个 UUID。没有网络 / 没配 key 时
+依然能拿到完整数据。
 
 ---
 
