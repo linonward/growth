@@ -47,11 +47,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const ready = useHydrateStore();
   const hasCompletedFirstRun = usePrototypeStore((s) => s.hasCompletedFirstRun);
 
+  /*
+   * A brand-new student must never see the world before the welcome.
+   *
+   * The overlays are lazily-loaded chunks, so rendering `children` as soon as
+   * hydration finishes would paint the world for a moment and then cover it
+   * with the first-run overlay. Gating the app on `hasCompletedFirstRun` (not
+   * just on `ready`) keeps the boot splash up until onboarding takes over.
+   */
+  const showApp = ready && hasCompletedFirstRun;
   const showFirstRun = ready && !hasCompletedFirstRun;
 
-  // Warm the overlay chunks during idle time. They are needed within seconds of
-  // the first interaction, so fetching them at the first quiet moment keeps the
-  // bundle split without adding a visible delay later.
+  // Warm the remaining overlay chunks during idle time. They are needed within
+  // seconds of the first interaction, so fetching them at the first quiet
+  // moment keeps the bundle split without adding a visible delay later.
   useEffect(() => {
     if (!ready) return;
     const warm = () => {
@@ -71,10 +80,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-frame">
       <main className="flex min-h-0 flex-1 flex-col">
-        {ready ? children : <BootSplash />}
+        {showApp ? children : <BootSplash />}
       </main>
 
-      {ready && !showFirstRun ? <BottomNav /> : null}
+      {showApp ? <BottomNav /> : null}
 
       {showFirstRun ? <FirstRunOverlay /> : null}
       <DayStartOverlay />

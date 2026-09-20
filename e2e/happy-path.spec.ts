@@ -209,6 +209,57 @@ test("the debug panel is hidden without ?debug=1", async ({ page }) => {
 });
 
 /**
+ * The world must never flash before the welcome on a cold first visit.
+ *
+ * Regression: the overlays are lazily-loaded chunks, and the shell used to
+ * render the page as soon as hydration finished. On a first run that painted
+ * the world for a moment and then covered it with the onboarding overlay.
+ */
+test("首次访问：世界不会先于欢迎页闪现", async ({ page }) => {
+  // Watch the DOM from before the app boots and record whether any app-only
+  // chrome ever appeared. Note `world-scene` is NOT a usable signal here: the
+  // onboarding overlay renders its own WorldScene preview.
+  await page.addInitScript(() => {
+    (window as unknown as { __leakedApp: string[] }).__leakedApp = [];
+    const seen = (window as unknown as { __leakedApp: string[] }).__leakedApp;
+    const check = () => {
+      for (const [sel, label] of [
+        ['[data-testid="day-badge"]', "world-page"],
+        ["nav", "bottom-nav"],
+      ] as const) {
+        if (document.querySelector(sel) && !seen.includes(label)) seen.push(label);
+      }
+    };
+    document.addEventListener("DOMContentLoaded", () => {
+      check();
+      new MutationObserver(check).observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    });
+  });
+
+  await page.goto("/");
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+
+  const overlay = page.getByTestId("first-run-overlay");
+  await expect(overlay).toBeVisible();
+  // Give any late paint a chance to land before asserting.
+  await page.waitForTimeout(400);
+
+  const leaked = await page.evaluate(
+    () => (window as unknown as { __leakedApp: string[] }).__leakedApp,
+  );
+  expect(leaked).toEqual([]);
+
+  // And the app does appear once onboarding is done.
+  await completeFirstRun(page);
+  await page.goto("/");
+  await expect(page.getByTestId("world-scene")).toBeVisible();
+});
+
+/**
  * Guards the bottom navigation layout.
  *
  * Regression: the links inherited only their text width (22px), sat flush left
