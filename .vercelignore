@@ -1,0 +1,9 @@
+# Never upload build artifacts — `next build` regenerates them on Vercel.
+# Without this the CLI would upload the local .next directory (hundreds of MB).
+.next
+out
+build
+test-results
+playwright-report
+blob-report
+tsconfig.tsbuildinfo
