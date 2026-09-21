@@ -185,11 +185,19 @@ PR 模板（`.github/pull_request_template.md`）里那份「纪律检查」清�
 
 ## 部署
 
-Vercel，从本地目录部署：`vercel deploy --prod --scope linonward`。
-项目已 link（`.vercel/` 已 gitignore）。
+Vercel，**已接 Git 自动部署**：
 
-`.vercelignore` 是必须的：否则 CLI 会把本地 `.next` 一起上传，那是几百 MB。
+- 合并到 `main` → 自动部署 Production（`growth.linonward.com`）
+- 开 PR → 自动部署 Preview
 
-**目前没有接 Git 自动部署** —— Vercel 账号是 `linonward2026`，
-而仓库在 `linonward` 名下，Vercel 没有对应的 GitHub App 权限。
-在 Vercel 控制台 → Settings → Git 连一次即可；在那之前每次都得手动 deploy。
+所以**合并 PR 就是上线，不要再去手动 deploy**。需要重新发布时才用：
+
+```bash
+vercel deploy --prod -y --scope linonward   # 项目已 link，.vercel/ 已 gitignore
+```
+
+`.vercelignore` 是给手动 CLI 部署用的：没有它会连本地 `.next`（几百 MB）一起上传。
+
+> 曾经这里写的是「没有接 Git 自动部署」，那是错的 —— PR 上出现 Vercel
+> Preview 检查、以及 GitHub deployments 里出现 `Production <merge commit>`
+> 才暴露出来。判断部署方式请看事实，不要看这份文档。

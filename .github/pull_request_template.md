@@ -39,10 +39,11 @@ Phase 0 只验证一件事：孩子回来，是因为他想看看自己的世界
 
 ## 部署
 
-<!-- 需要 `vercel deploy --prod` 吗？需要新增环境变量吗？ -->
+<!-- 合并到 main 会自动部署 Production，所以这里只问环境变量。 -->
 
-- [ ] 不需要重新部署（仅文档 / 测试 / CI）
-- [ ] 需要重新部署，已执行 `vercel deploy --prod -y --scope linonward`
+- [ ] 不需要新增环境变量（合并后自动部署）
+- [ ] 需要新增环境变量，已在 Vercel 控制台配置（注意 `NEXT_PUBLIC_*` 只在 Production 设置，
+      避免预览部署污染实验数据）
 
 ## 相关
 
