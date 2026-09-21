@@ -1,0 +1,39 @@
+name: PR
+
+# PR-specific checks. Code checks live in ci.yml and run on both pushes and PRs;
+# this workflow only concerns the pull request itself.
+on:
+  pull_request:
+    # `edited` matters: the title is the thing being validated, so fixing a bad
+    # title has to re-run the check.
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    name: PR title convention
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      # The title is passed through the environment rather than interpolated
+      # into the command, so a title containing shell metacharacters is inert.
+      - name: Check title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/check-pr-title.sh "$PR_TITLE"
+
+      # Same thing, locally, before pushing a branch:
+      #   ./scripts/check-pr-title.sh "feat(goals): split learning by subject"
+      - name: How to fix a failure
+        if: failure()
+        run: |
+          echo "::notice::PR 标题会被 squash merge 成 main 上的 commit subject。"
+          echo "::notice::格式：<type>(<scope>): <subject>，例如 feat(goals): split learning by subject"

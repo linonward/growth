@@ -34,6 +34,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | `pnpm e2e` | Playwright 端到端（CI 里是单独的 job） |
 | `pnpm typecheck` / `pnpm lint` | tsc / ESLint |
 | `pnpm analyze` | 分析 `/debug/export` 的 JSON，输出数据可信度报告 |
+| `scripts/check-pr-title.sh` | 校验 PR 标题（CI 会跑，本地也能跑） |
 
 **开发服务器要用 `localhost` 打开，不要用 `127.0.0.1`。**
 Next 16 会拦截不在 `allowedDevOrigins` 里的来源，页面会服务端渲染出来但永远不 hydration，
@@ -171,6 +172,16 @@ schema 里没有 reset 事件）—— Debug 按钮很容易误触，
 原因见 `client.ts` 顶部注释：SDK 1.434.2 在最小配置下也从不发送事件（已在
 静态页面用官方预编译包复现），而 HTTP API 实测 200 且事件到达。
 不要"顺手"把它换回 SDK —— 换之前先按注释里的方法验证事件真的发出去了。
+
+## PR 流程
+
+`main` 上的提交都来自 PR + **squash merge**，所以**PR 标题就是 commit subject**，
+必须符合 `<type>(<scope>): <subject>`（`pr.yml` 会拦）。`ci.yml` 在 PR 上也会跑。
+
+PR 模板（`.github/pull_request_template.md`）里那份「纪律检查」清单，是本文件那些
+硬约束的提交前版本。改这个仓库时请逐条确认，不要当摆设 —— 尤其是
+「没有新增 analytics 事件」和「Day Gate 没被绕过」这两条，它们很容易被
+「顺手优化」破坏，而且破坏了不会报错，只会让实验失去意义。
 
 ## 部署
 

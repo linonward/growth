@@ -10,6 +10,55 @@
 Phase 0 **不做**：登录注册、后端、AI、社交、排行榜、商城、金币、付费、老师端、家长后台。
 所有数据保存在 `localStorage`。
 
+## 开发流程（PR）
+
+`main` 上的每个提交都来自一个 pull request，用 **squash merge** —— 所以 PR 标题就是
+commit subject，这也是唯一强制检查的格式。
+
+```bash
+git switch -c feat/goal-library
+# ...改代码...
+pnpm verify && pnpm e2e        # 本地先过一遍
+git push -u origin feat/goal-library
+gh pr create --fill            # 模板会自动带上
+```
+
+开 PR 后自动跑两套：
+
+| workflow | 检查 |
+| --- | --- |
+| `ci.yml` | 格式 · 类型 · lint · 单测 · 构建 · Playwright |
+| `pr.yml` | PR 标题符合 `<type>(<scope>): <subject>` |
+
+标题规则本地也能跑：
+
+```bash
+./scripts/check-pr-title.sh "feat(goals): split learning by subject"
+```
+
+**PR 模板里的「纪律检查」不是走过场** —— 它把 spec 与 `AGENTS.md` 的硬约束
+（analytics schema 固定 14 个事件、不采集真实身份、目标库文案规则、P4 禁用词、
+Day Gate、`data-testid`）变成提交前必须逐条确认的清单。这个项目的最大风险是
+范围蔓延，模板第一段就是用来挡它的。
+
+### 建议开启分支保护
+
+让 CI 成为真正的门而不是提示（**注意：开启后不能再直接 `git push origin main`**）：
+
+```bash
+gh api -X PUT repos/linonward/growth/branches/main/protection \
+  -F required_status_checks[strict]=true \
+  -F 'required_status_checks[contexts][]=Format, types, lint, unit tests, build' \
+  -F 'required_status_checks[contexts][]=End-to-end (mobile chromium)' \
+  -F 'required_status_checks[contexts][]=PR title convention' \
+  -F enforce_admins=false \
+  -F 'required_pull_request_reviews[required_approving_review_count]=0' \
+  -F restrictions=
+```
+
+`required_approving_review_count=0` 是刻意的：单人项目不需要为了凑一个 approval
+而制造虚假评审，但**必须**让检查通过才能合并。
+
 ## 持续集成
 
 `.github/workflows/ci.yml`，两个 job：
