@@ -12,6 +12,13 @@ import {
  * tapping or slander an honest student.
  */
 
+/**
+ * The child's timezone. Fixed in the fixture so these tests give the same answer
+ * on a developer machine in China and a UTC CI runner — which is exactly the bug
+ * CI caught.
+ */
+const CST = -480;
+
 /** Local (UTC+8) wall-clock time on the given experiment day. */
 const T = (day: number, hour: number, minute: number, second = 0) =>
   new Date(Date.UTC(2026, 8, 20 + day, hour - 8, minute, second)).toISOString();
@@ -49,6 +56,7 @@ function honest(): RawExport {
     schemaVersion: 1,
     exportedAt: T(7, 22, 0),
     participantId: "honest-0000",
+    timezoneOffsetMinutes: CST,
     events,
   };
 }
@@ -75,6 +83,7 @@ function tapper(): RawExport {
     schemaVersion: 1,
     exportedAt: T(7, 22, 0),
     participantId: "tapper-0000",
+    timezoneOffsetMinutes: CST,
     events,
   };
 }
@@ -110,6 +119,35 @@ describe("analyse — separates doing from tapping", () => {
     );
     const r = analyse(raw);
     expect(r.shortfallCount).toBeGreaterThan(0);
+  });
+});
+
+describe("analyse — time of day is the child's, not the analyst's", () => {
+  it("reads the same hours regardless of this machine's timezone", () => {
+    // Same data, and the signal must not move when the analyser runs elsewhere.
+    const r = analyse(tapper());
+    expect(r.oddHourCount).toBeGreaterThan(0);
+  });
+
+  it("does not flag school goals done during the school day", () => {
+    const r = analyse(honest());
+    expect(r.schoolCount).toBeGreaterThan(0);
+    expect(r.oddHourCount).toBe(0);
+  });
+
+  it("treats a 21:00 CST completion as late even when analysed from UTC", () => {
+    // 21:30 CST is 13:30 UTC — the distinction the naive getHours() lost.
+    const raw = tapper();
+    expect(raw.timezoneOffsetMinutes).toBe(CST);
+    const r = analyse(raw);
+    expect(r.oddHourCount / r.schoolCount).toBeGreaterThan(0.2);
+  });
+
+  it("falls back to this machine's offset when the export predates the field", () => {
+    const raw = tapper();
+    raw.timezoneOffsetMinutes = undefined;
+    // Must not throw, whatever the runner's timezone is.
+    expect(() => analyse(raw)).not.toThrow();
   });
 });
 

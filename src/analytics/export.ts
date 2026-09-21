@@ -41,6 +41,16 @@ export interface ExperimentExport {
   exportedAt: string;
   /** Anonymous participant UUID — the same id PostHog receives. Never a real identity. */
   participantId: string;
+  /**
+   * The device's UTC offset in minutes at export time (`getTimezoneOffset()`,
+   * so UTC+8 is -480).
+   *
+   * The credibility signals care about local time of day — a school goal
+   * completed at 21:00 is suspicious in the child's timezone, not the
+   * analyst's. Without this the reading silently changes depending on where
+   * the analysis runs. Optional so older exports still load.
+   */
+  timezoneOffsetMinutes?: number;
   profile: UserProfile;
   summary: ExperimentSummary;
   days: DayReport[];
@@ -109,6 +119,7 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
   return {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
+    timezoneOffsetMinutes: new Date().getTimezoneOffset(),
     participantId,
     profile,
     summary: {

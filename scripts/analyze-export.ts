@@ -42,6 +42,8 @@ export interface RawExport {
   schemaVersion: number;
   exportedAt: string;
   participantId: string;
+  /** See ExperimentExport.timezoneOffsetMinutes. Falls back to this machine. */
+  timezoneOffsetMinutes?: number;
   summary?: Record<string, unknown>;
   events: RawEvent[];
 }
@@ -73,6 +75,16 @@ function declaredMinutes(templateId: string): number | null {
   if (!amount) return null;
   const match = amount.match(/(\d+)\s*分钟/);
   return match ? Number(match[1]) : null;
+}
+
+/**
+ * Local hour of day in the *child's* timezone.
+ *
+ * `at` is stored as UTC, so the naive `getHours()` reads the analyst's clock —
+ * which silently reported zero suspicious hours when run outside China.
+ */
+function localHour(at: number, offsetMinutes: number): number {
+  return new Date(at - offsetMinutes * 60_000).getUTCHours();
 }
 
 function isSchoolGoal(templateId: string): boolean {
@@ -159,12 +171,13 @@ export function analyse(raw: RawExport): ParticipantReport {
   }
 
   /* 3. implausible hours -------------------------------------------------- */
+  const offsetMinutes = raw.timezoneOffsetMinutes ?? new Date().getTimezoneOffset();
   let oddHourCount = 0;
   let schoolCount = 0;
   for (const completion of completions) {
     if (!isSchoolGoal(completion.templateId)) continue;
     schoolCount++;
-    const hour = new Date(completion.at).getHours();
+    const hour = localHour(completion.at, offsetMinutes);
     if (hour >= SCHOOL_UNLIKELY_HOUR_START || hour < SCHOOL_UNLIKELY_HOUR_END) {
       oddHourCount++;
     }
