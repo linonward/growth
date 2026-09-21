@@ -106,6 +106,8 @@ gh api -X PUT repos/linonward/growth/branches/main/protection \
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | 架构约束与容易踩的坑（改代码前先看） |
 | [`docs/competitive-positioning.md`](docs/competitive-positioning.md) | 竞品对比、差异化、以及自评失真的验证设计 |
+| [`docs/ux-research/phase0-evaluation.md`](docs/ux-research/phase0-evaluation.md) | 6–12 岁用研评估：判据、阈值，以及每条结论的【推断】/【待测】状态 |
+| [`docs/ux-research/pilot-protocol.md`](docs/ux-research/pilot-protocol.md) | **跑 Pilot 的执行清单**：分层招募、设备录入、D8 补导、访谈脚本、判读卡 |
 
 ---
 
