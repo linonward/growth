@@ -559,19 +559,23 @@ Day 6 是刻意的 anticipation 实验：小门出现，但当天无论完成多
 
 线上地址：**https://growth.linonward.com**（Vercel，`linonward/growth` 项目）
 
+**已接 Git 自动部署**，所以正常流程不需要手动 deploy：
+
+| 事件 | 结果 |
+| --- | --- |
+| 合并到 `main` | 自动部署 Production → https://growth.linonward.com |
+| 开 PR | 自动部署 Preview，并在 PR 上评论链接 |
+
+**合并 PR 就是上线。** 需要绕开 Git 手动部署时（例如线上出问题、要重新发一次）：
+
 ```bash
-vercel deploy --prod --scope linonward   # 生产
-vercel deploy --scope linonward          # 预览
+vercel deploy --prod -y --scope linonward
 ```
 
-`.vercelignore` 是必须的：没有它 CLI 会把本地的 `.next` 一起上传，那是几百 MB。
+`.vercelignore` 对手动 CLI 部署仍然有用：没有它会连本地 `.next`（几百 MB）一起上传。
 
-**目前没有接 Git 自动部署** —— Vercel 账号是 `linonward2026`，而仓库在 `linonward`
-名下，Vercel 没有对应的 GitHub App 权限，`vercel git connect` 会失败。
-在 Vercel 控制台 → Settings → Git 连一次即可，在那之前每次都要手动 deploy。
-
-> 因为部署走的是**本地目录**而不是远程仓库，线上会比 `origin/main` 新 ——
-> 记得及时 push，否则 GitHub 和线上会不一致。
+> 自动部署意味着**线上的版本永远等于 `origin/main`**，不会再出现
+> 「GitHub 和线上不一致」的情况。
 
 ---
 
