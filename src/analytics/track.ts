@@ -119,10 +119,17 @@ export function trackDayCompleted(input: {
 /**
  * Fired when the reward moment closes, not when it opens.
  *
- * `stagesSeen` (1–4) is the point: the sequence is always skippable, so if
- * every student taps skip then nobody ever sees behaviour -> world change and
- * the whole P1 principle goes untested. This is the only way to know whether
- * that happened, and one property answers it.
+ * Two properties answer "did the behaviour -> world change beat land?":
+ *
+ *   stages_seen — how many stages were on screen (1–4). Mechanical, and after
+ *                 the sequence became tap-to-advance a fast tapper scores 4
+ *                 without having read anything.
+ *   skipped     — whether the skip button was pressed, which is the deliberate
+ *                 "I want out" signal.
+ *
+ * Read together. `stages_seen` alone over-reports attention; `skipped` alone
+ * misses the child who quietly taps through. Neither is a claim about
+ * comprehension — that is what the 3-minute recall probe is for.
  */
 export function trackRewardViewed(input: {
   day: number;
@@ -130,12 +137,14 @@ export function trackRewardViewed(input: {
   isMajor: boolean;
   target: string;
   stagesSeen: number;
+  skipped: boolean;
 }): void {
   emit("reward_viewed", input.day, {
     goal_type: input.goalType,
     is_major: input.isMajor,
     reward_target: input.target,
     stages_seen: input.stagesSeen,
+    skipped: input.skipped,
   });
 }
 

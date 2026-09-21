@@ -289,15 +289,52 @@ test("reward_viewed records how much of the animation was actually watched", asy
   await page.goto("/debug/export");
   await expect(page.getByTestId("export-page")).toBeVisible();
   const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
-  const stages = parsed.events
+  const rewards = parsed.events
     .filter((e: { name: string }) => e.name === "reward_viewed")
-    .map((e: { props: { stages_seen: number } }) => e.props.stages_seen);
+    .map((e: { props: { stages_seen: number; skipped: boolean } }) => e.props);
 
-  expect(stages).toHaveLength(2);
+  expect(rewards).toHaveLength(2);
   // Watched to the end.
-  expect(stages[0]).toBe(4);
+  expect(rewards[0].stages_seen).toBe(4);
+  expect(rewards[0].skipped).toBe(false);
   // Skipping jumps to the last stage; if that were counted, this would be 4 too.
-  expect(stages[1]).toBe(1);
+  expect(rewards[1].stages_seen).toBe(1);
+  // ...and `skipped` is what tells the two apart, now that tapping also
+  // advances the sequence.
+  expect(rewards[1].skipped).toBe(true);
+});
+
+test("reward 可以轻点继续，也可以真正跳过", async ({ page }) => {
+  // The timings used to be fixed for an adult reading speed, and the only
+  // visible control was a faint grey "跳过" in the corner. A child who reads
+  // slowly had no way to slow the sequence down.
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, [...DAILY_GOALS]);
+
+  // Tap through stages 1 and 2 as soon as the affordance unlocks.
+  await page.goto("/goals");
+  await page.getByTestId(`goal-item-${DAILY_GOALS[0]}`).click();
+  await page.getByTestId("goal-confirm-yes").click();
+  const advance = page.getByTestId("reward-advance");
+  await expect(advance).toBeVisible();
+  await expect(advance).toHaveAttribute("data-ready", "true", { timeout: 5000 });
+  await advance.click();
+  await expect(page.getByTestId("reward-stage-energy")).toBeVisible();
+  await expect(advance).toHaveAttribute("data-ready", "true", { timeout: 5000 });
+  await advance.click();
+  await expect(page.getByTestId("reward-stage-change")).toBeVisible();
+
+  // Tapping is not skipping: the beat still played, so stages_seen reaches 3.
+  await page.getByTestId("reward-skip").click();
+  await page.getByTestId("reward-continue").click();
+  await page.goto("/debug/export");
+  const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
+  const reward = parsed.events.find(
+    (e: { name: string }) => e.name === "reward_viewed",
+  ).props;
+  expect(reward.stages_seen).toBe(3);
+  expect(reward.skipped).toBe(true);
 });
 
 test("the debug panel is hidden without ?debug=1", async ({ page }) => {
