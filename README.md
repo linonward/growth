@@ -12,6 +12,9 @@ Phase 0 **不做**：登录注册、后端、AI、社交、排行榜、商城、
 
 ## 开发流程（PR）
 
+> **不要在 `main` 上直接提交。** 任何改动都走分支 + PR。
+> `main` 就是线上（Vercel 自动部署），PR 也是唯一会强制跑检查的地方。
+
 `main` 上的每个提交都来自一个 pull request，用 **squash merge** —— 所以 PR 标题就是
 commit subject，这也是唯一强制检查的格式。
 
