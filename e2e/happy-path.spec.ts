@@ -233,6 +233,25 @@ test("the experimenter records an age band and it reaches the export", async ({
   expect(parsed.events.at(-1).props.age_band).toBe("6-7");
 });
 
+test("导出带上 D8 窗口，并说明什么时候才能判读它", async ({ page }) => {
+  // D8 is the primary acceptance point and it is a property of WHEN the file is
+  // taken, so an export from inside the week must say "not yet" rather than
+  // silently reporting zero returns.
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await completeGoal(page, DAILY_GOALS[0]);
+
+  await page.goto("/debug/export");
+  await expect(page.getByTestId("export-post-week")).toHaveText("还没有");
+  await expect(page.getByTestId("export-summary")).toContainText("主验收点");
+
+  const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
+  expect(parsed.postWeek).toMatchObject({ daysActive: 0, firstDayActive: null });
+  // The week itself is still reported, separately.
+  expect(parsed.summary.dayRetention["1"]).toBe(true);
+});
+
 test("小星星园随每一次「今天做到了」长出来，并在界面上可见", async ({ page }) => {
   // Regression: the garden is only as good as the plumbing from the store to
   // the world state. It was first wired into the selectors but not into the hook

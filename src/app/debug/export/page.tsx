@@ -79,6 +79,33 @@ export default function ExportPage() {
               {payload.summary.initiativeSelf} / {payload.summary.initiativePrompted}
             </span>
           </p>
+          {/*
+            The D8 window is the primary acceptance point, and it is a property
+            of WHEN this file is taken — so the page has to say whether the file
+            in hand can answer it. Silent zeros here would read as "nobody came
+            back" when the truth is "Day 8 has not happened yet".
+          */}
+          <p className="mt-1">
+            第 8 天及以后回访：
+            <span
+              className={`font-semibold ${
+                payload.postWeek.daysActive > 0 ? "text-leaf-deep" : "text-ink-faint"
+              }`}
+              data-testid="export-post-week"
+            >
+              {payload.postWeek.daysActive > 0
+                ? `${payload.postWeek.daysActive} 天（首次 D${payload.postWeek.firstDayActive}）`
+                : "还没有"}
+            </span>
+          </p>
+          {payload.postWeek.daysActive === 0 ? (
+            <p className="mt-1 text-[12px] text-ink-soft">
+              这是<span className="font-semibold">主验收点</span>
+              ：7 天故事结束后还回不回来。请在参与者跑完 7 天之后
+              <span className="font-semibold">再导出一次</span>
+              —— 现在这份文件的 D8+ 一定还是 0。
+            </p>
+          ) : null}
           <p className="mt-1">
             继续意愿：
             <span className="font-semibold text-ink">
