@@ -19,15 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Must run before setup-node: `cache: pnpm` shells out to pnpm to find
       # the store path. The version comes from package.json's packageManager.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # Node 24 matches the version this project is developed and verified on.
       # `scripts/analyze-export.ts` relies on Node's native TypeScript support.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -37,6 +37,8 @@ jobs:
       # `check:ci` is the read-only variant of `check`; it fails instead of
       # rewriting files, so a formatting drift cannot pass silently.
       - run: pnpm check:ci
+      # `typecheck` runs `next typegen` first: Next generates LayoutProps /
+      # PageProps into .next/types, so a bare tsc fails on a fresh clone.
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
@@ -51,9 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -67,7 +69,7 @@ jobs:
       - run: pnpm e2e
 
       # Traces and screenshots, but only when something failed.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-test-results

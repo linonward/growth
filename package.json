@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check --write .",
@@ -17,7 +17,8 @@
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "verify": "pnpm check:ci && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "analyze": "node scripts/analyze-export.ts"
+    "analyze": "node scripts/analyze-export.ts",
+    "typegen": "next typegen"
   },
   "dependencies": {
     "framer-motion": "^13.4.0",
