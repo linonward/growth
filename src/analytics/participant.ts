@@ -5,10 +5,11 @@ import { PARTICIPANT_KEY } from "@/domain/constants";
 /**
  * Anonymous, stable participant identity.
  *
- * The target users are 8–12 year olds, so data minimisation starts here: the
+ * The target users are 6–12 year olds, so data minimisation starts here: the
  * only identifier this prototype ever uses is a locally generated UUID. There
  * is deliberately no email, phone, name, school or any other real identity —
- * do not add one. `posthog.identify()` must only ever receive this UUID.
+ * do not add one. `$identify` must only ever receive this UUID plus the two
+ * study-level properties (`experiment_version`, `age_band`).
  *
  * It lives in its own storage key so it survives a prototype reset: a reset
  * clears progress, not who the participant is.

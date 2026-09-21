@@ -198,6 +198,40 @@ test("the initiative question is asked once and is exported", async ({ page }) =
   expect(parsed.days).toHaveLength(7);
 });
 
+test("the experimenter records an age band and it reaches the export", async ({
+  page,
+}) => {
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // The picker lives in the debug panel: it is a study-setup action, so it must
+  // never be in the student's flow.
+  await page.goto("/?debug=1");
+  await expect(page.getByTestId("debug-panel")).toBeVisible();
+  // Before anything is recorded the panel says so instead of showing a guess.
+  await expect(page.getByTestId("debug-age-band-value")).toHaveText("未记录");
+
+  await page.getByTestId("debug-age-6-7").click();
+  await expect(page.getByTestId("debug-age-band-value")).toHaveText("6-7");
+
+  // The export is what the analysis actually reads, so assert the field there
+  // rather than only in the panel.
+  await page.goto("/debug/export");
+  await expect(page.getByTestId("export-age-band")).toHaveText("一年级");
+  const json = (await page.getByTestId("export-json").textContent()) ?? "";
+  const parsed = JSON.parse(json);
+  expect(parsed.profile.ageBand).toBe("6-7");
+  // Every event carries the key. Events emitted before the band was recorded
+  // stay explicitly null (that is the honest record — this device's first open
+  // predates setup), and nothing must retroactively claim a band.
+  expect(
+    parsed.events.every((e: { props: Record<string, unknown> }) =>
+      Object.hasOwn(e.props, "age_band"),
+    ),
+  ).toBe(true);
+  expect(parsed.events.at(-1).props.age_band).toBe("6-7");
+});
+
 test("reward_viewed records how much of the animation was actually watched", async ({
   page,
 }) => {

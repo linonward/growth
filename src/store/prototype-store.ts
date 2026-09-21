@@ -12,6 +12,7 @@ import {
   persistEvents,
   readEvents,
 } from "@/analytics/persistence";
+import { setActiveAgeBand } from "@/analytics/properties";
 import {
   registerEventSink,
   trackContinueRequested,
@@ -41,6 +42,7 @@ import {
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import { describeRewardChange, detectDayMilestone } from "@/domain/reward";
 import type {
+  AgeBand,
   AnalyticsEvent,
   DailyCheckIn,
   DailyGoal,
@@ -86,6 +88,12 @@ export interface PrototypeStoreState {
     petSpecies?: PetSpecies;
     now?: Date;
   }) => void;
+  /**
+   * Record the participant's age band. Called by the experimenter, never by the
+   * student, and it survives a prototype reset for the same reason the
+   * participant id does: it describes who is taking part, not their progress.
+   */
+  setAgeBand: (band: AgeBand | null) => void;
   renamePet: (name: string) => void;
   renameWorld: (name: string) => void;
   selectGoals: (day: number, templateIds: string[]) => void;
@@ -115,6 +123,10 @@ function defaultProfile(now = new Date()): UserProfile {
     petName: DEFAULT_PET_NAME,
     petSpecies: "fox",
     startedAt: now.toISOString(),
+    // Unrecorded until the experimenter sets it. Never inferred from anything:
+    // a guessed age band is worse than a missing one, because it silently
+    // creates a cohort that the study did not recruit.
+    ageBand: null,
   };
 }
 
@@ -252,6 +264,14 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           petSpecies: petSpecies ?? "fox",
           worldNameSet: Boolean(worldName?.trim()),
         });
+      },
+
+      setAgeBand: (band) => {
+        // Push to the analytics layer first so the very next event already
+        // carries it (the picker is used during device setup, before the child
+        // touches anything).
+        setActiveAgeBand(band);
+        set((state) => ({ profile: { ...state.profile, ageBand: band } }));
       },
 
       renamePet: (name) => {
@@ -596,6 +616,10 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           profile: { ...state.profile, startedAt: now.toISOString() },
           events: state.events,
         }));
+        // `profile` carries the age band through the reset (`initialPersistedState`
+        // would have blanked it), but the analytics layer holds its own copy —
+        // re-push it or every event after a reset would lose the band.
+        setActiveAgeBand(get().profile.ageBand ?? null);
       },
     }),
     {
@@ -696,6 +720,18 @@ export function adoptPersistedEvents(): void {
     // Nothing changed, so the subscription above would not fire.
     persistEvents(store.events);
   }
+}
+
+/**
+ * Re-publish the persisted age band to the analytics layer.
+ *
+ * Must run after `persist.rehydrate()`, before the first tracker fires: without
+ * it, `experiment_started` and the Day 1 events would go out unsegmented even
+ * though a band was recorded during setup. Same reason as `adoptPersistedEvents`
+ * — the analytics layer has no store access by design.
+ */
+export function adoptAgeBand(): void {
+  setActiveAgeBand(usePrototypeStore.getState().profile.ageBand ?? null);
 }
 
 export { flushEvents };

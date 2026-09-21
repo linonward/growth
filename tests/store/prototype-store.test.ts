@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { clearEvents, flushEvents, readEvents } from "@/analytics/persistence";
+import { getActiveAgeBand, setActiveAgeBand } from "@/analytics/properties";
 import { ANALYTICS_KEY, STORAGE_KEY } from "@/domain/constants";
 import {
+  adoptAgeBand,
   adoptPersistedEvents,
   selectGrowth,
   selectTotalEnergy,
@@ -21,6 +23,7 @@ function resetStore() {
       petName: "小光",
       petSpecies: "fox",
       startedAt: START,
+      ageBand: null,
     },
     currentDay: 1,
     dayOverride: null,
@@ -492,5 +495,66 @@ describe("analytics storage is split from game state", () => {
     const payload = usePrototypeStore.getState().buildExport();
     expect(payload.summary.goalsCompleted).toBe(1);
     expect(payload.events.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The age band is what makes the 6–12 study analysable at all, so these guard
+ * the three ways it could silently go missing: not reaching the analytics layer,
+ * not surviving a reload, and not surviving a prototype reset.
+ */
+describe("age band recording", () => {
+  it("defaults to unrecorded rather than guessing a band", () => {
+    expect(usePrototypeStore.getState().profile.ageBand).toBeNull();
+    expect(getActiveAgeBand()).toBeNull();
+  });
+
+  it("reaches the analytics layer, not only the profile", () => {
+    usePrototypeStore.getState().setAgeBand("6-7");
+
+    expect(usePrototypeStore.getState().profile.ageBand).toBe("6-7");
+    // The profile alone would make the export right and every event wrong.
+    expect(getActiveAgeBand()).toBe("6-7");
+
+    const ids = pickGoals(1, 1);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    expect(usePrototypeStore.getState().events.at(-1)?.props?.age_band).toBe("6-7");
+  });
+
+  it("persists the band and puts it in the export", () => {
+    usePrototypeStore.getState().setAgeBand("9-10");
+
+    expect(usePrototypeStore.getState().buildExport().profile.ageBand).toBe("9-10");
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(raw.state.profile.ageBand).toBe("9-10");
+  });
+
+  it("keeps the band across a prototype reset, like the participant id", () => {
+    usePrototypeStore.getState().setAgeBand("11-12");
+    usePrototypeStore.getState().resetPrototype();
+
+    expect(usePrototypeStore.getState().profile.ageBand).toBe("11-12");
+    // The analytics layer holds its own copy, so a reset that only touched the
+    // profile would make every post-reset event unsegmented.
+    expect(getActiveAgeBand()).toBe("11-12");
+  });
+
+  it("can be cleared, and clearing propagates too", () => {
+    usePrototypeStore.getState().setAgeBand("6-7");
+    usePrototypeStore.getState().setAgeBand(null);
+
+    expect(usePrototypeStore.getState().profile.ageBand).toBeNull();
+    expect(getActiveAgeBand()).toBeNull();
+  });
+
+  it("re-publishes the stored band on hydration", () => {
+    // Simulate a cold start: a band was recorded on a previous visit, the
+    // in-memory analytics copy is blank (as it is in a fresh page load).
+    usePrototypeStore.getState().setAgeBand("8-9");
+    setActiveAgeBand(null);
+
+    adoptAgeBand();
+
+    expect(getActiveAgeBand()).toBe("8-9");
   });
 });

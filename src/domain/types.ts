@@ -85,6 +85,21 @@ export type PlantState =
 
 export type PetSpecies = "fox" | "cat" | "rabbit";
 
+/**
+ * Age band of the participant, recorded once by the experimenter.
+ *
+ * Phase 0 now covers the whole 6–12 primary-school range, and those ages do not
+ * behave like one group: a six-year-old cannot read most of this UI, cannot
+ * self-assess "done", and has no felt sense of "15 分钟". Without this field the
+ * export cannot be segmented, so "how did the 6–8 group do" is unanswerable no
+ * matter how much data is collected.
+ *
+ * Bands, not exact ages (data minimisation — see AGENTS.md): they are what the
+ * analysis actually needs, and a birth year is more identity than Phase 0
+ * requires. Lives on the profile so both the export and every event carry it.
+ */
+export type AgeBand = "6-7" | "7-8" | "8-9" | "9-10" | "10-11" | "11-12";
+
 export interface WorldState {
   /** Day 4+ (or a full first day) puts the first flower on the island. */
   flowerUnlocked: boolean;
@@ -113,6 +128,12 @@ export interface UserProfile {
   petName: string;
   startedAt: string;
   petSpecies: PetSpecies;
+  /**
+   * Optional so Phase 0 v1 exports and any device still on the old build keep
+   * loading. Absent means "not recorded", which the analysis must report as
+   * unsegmented rather than guessing a band.
+   */
+  ageBand?: AgeBand | null;
 }
 
 export interface DailyCheckIn {

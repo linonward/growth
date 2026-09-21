@@ -8,7 +8,11 @@ import { ENERGY_PER_GOAL, MAX_TOTAL_ENERGY } from "@/domain/constants";
 import { energyFromCompletedGoals, getGrowthState } from "@/domain/growth";
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import type { DailyGoal, GrowthState } from "@/domain/types";
-import { adoptPersistedEvents, usePrototypeStore } from "@/store/prototype-store";
+import {
+  adoptAgeBand,
+  adoptPersistedEvents,
+  usePrototypeStore,
+} from "@/store/prototype-store";
 
 /** Stable empty array so selectors never hand React a fresh reference. */
 const EMPTY_GOALS: DailyGoal[] = [];
@@ -46,6 +50,9 @@ export function useHydrateStore(): boolean {
       const store = usePrototypeStore.getState();
 
       adoptPersistedEvents();
+      // Publish the recorded age band before the first tracker fires, so even
+      // the Day 1 events are attributable to an age group.
+      adoptAgeBand();
       // Establish the anonymous identity first, and unconditionally: it must be
       // stable whether or not PostHog happens to be configured, and it is the
       // attribution key in the offline export.

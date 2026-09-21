@@ -1,7 +1,7 @@
 "use client";
 
 import { getParticipantId } from "@/analytics/participant";
-import { EXPERIMENT_VERSION } from "@/analytics/properties";
+import { EXPERIMENT_VERSION, getActiveAgeBand } from "@/analytics/properties";
 
 /**
  * The only module that delivers events to PostHog.
@@ -29,8 +29,10 @@ import { EXPERIMENT_VERSION } from "@/analytics/properties";
  * 14-event list, so the HTTP API is both simpler and the one path that
  * demonstrably works.
  *
- * Privacy posture for a prototype used by 8–12 year olds:
+ * Privacy posture for a prototype used by 6–12 year olds:
  *   - anonymous participant UUID only, never a real identity
+ *   - the only person properties are `experiment_version` and the one-school-year
+ *     wide `age_band` the experimenter records (never a birth date)
  *   - an explicit, hypothesis-driven event list — no autocapture
  *   - no URLs, referrers or query strings are ever sent
  *   - no session replay, no feature flags, no surveys
@@ -167,8 +169,10 @@ const httpTransport: AnalyticsTransport = {
  *
  * The participant id is resolved during hydration whether or not analytics is
  * configured (see `store/hooks.ts`), so this only registers it with PostHog.
- * `$identify` carries `experiment_version` and nothing else — no real-world
- * identifier is ever sent.
+ * `$set` carries the two study-level person properties — `experiment_version`
+ * and `age_band` — and nothing else. Both are recorded by the experimenter;
+ * neither is a real-world identifier, and the age band is one school year wide
+ * on purpose (see `domain/types.ts`).
  */
 export function initAnalytics(): Promise<AnalyticsTransport | null> {
   if (initPromise) return initPromise;
@@ -180,6 +184,7 @@ export function initAnalytics(): Promise<AnalyticsTransport | null> {
   installFlushListeners();
   client = httpTransport;
 
+  const ageBand = getActiveAgeBand();
   post("/e/?ip=0", {
     api_key: KEY,
     event: "$identify",
@@ -187,7 +192,12 @@ export function initAnalytics(): Promise<AnalyticsTransport | null> {
     timestamp: new Date().toISOString(),
     properties: {
       ...contextProps(),
-      $set: { experiment_version: EXPERIMENT_VERSION },
+      // `$set` values must be non-null; an unrecorded band is simply omitted
+      // here (the per-event property still reports it as an explicit null).
+      $set: {
+        experiment_version: EXPERIMENT_VERSION,
+        ...(ageBand ? { age_band: ageBand } : {}),
+      },
     },
   });
 

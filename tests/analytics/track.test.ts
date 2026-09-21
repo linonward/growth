@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { __setAnalyticsClient } from "@/analytics/client";
-import { EXPERIMENT_VERSION } from "@/analytics/properties";
+import { EXPERIMENT_VERSION, setActiveAgeBand } from "@/analytics/properties";
 import {
   trackContinueRequested,
   trackDay7Completed,
@@ -9,6 +9,7 @@ import {
   trackExperimentStarted,
   trackGoalCompleted,
   trackGoalSelected,
+  trackHistoryViewed,
   trackInitiativeAnswered,
   trackMilestoneViewed,
   trackPetViewed,
@@ -132,6 +133,65 @@ describe("AC ⑤ every event carries the common properties", () => {
       expect(event.props.experiment_version).toBe(EXPERIMENT_VERSION);
       expect(event.props.experiment_day).toBeGreaterThanOrEqual(1);
       expect(event.props.experiment_day).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
+/**
+ * The 6–12 study cannot be segmented without this property, so it is asserted on
+ * every event in the schema rather than on one representative event: a single
+ * call site that forgot it would make exactly one funnel unreadable.
+ */
+describe("age_band is a common property, not a per-event one", () => {
+  const emitAll = () => {
+    trackExperimentStarted({ day: 1, petSpecies: "fox", worldNameSet: true });
+    trackSessionStarted({ day: 1 });
+    trackWorldViewed({ day: 1 });
+    trackPetViewed({ day: 1, petState: "egg" });
+    trackPlantViewed({ day: 1, plantState: "seed" });
+    trackHistoryViewed({ day: 1 });
+    trackGoalSelected({ day: 1, goalType: "reading" });
+    trackGoalCompleted({
+      day: 1,
+      goalType: "reading",
+      energyEarned: 10,
+      petState: "egg",
+      plantState: "sprout",
+      totalEnergy: 10,
+    });
+    trackRewardViewed({
+      day: 1,
+      goalType: "reading",
+      isMajor: false,
+      target: "energy",
+      stagesSeen: 3,
+    });
+    trackInitiativeAnswered({ day: 1, initiative: "self" });
+    trackMilestoneViewed({ day: 1, milestoneId: "x" });
+    trackDayCompleted({ day: 1, goalsCompleted: 3, energyEarned: 30 });
+    trackDay7Completed({ day: 7, totalEnergy: 180 });
+    trackContinueRequested({ day: 7, totalEnergy: 180 });
+  };
+
+  it("carries the recorded band on every event in the schema", () => {
+    setActiveAgeBand("6-7");
+    emitAll();
+
+    expect(captured).toHaveLength(ANALYTICS_EVENT_NAMES.length);
+    for (const event of captured) {
+      expect(event.props.age_band).toBe("6-7");
+    }
+  });
+
+  it("reports an explicit null when nothing was recorded", () => {
+    emitAll();
+
+    // Explicit rather than absent: a missing key is indistinguishable from
+    // "this event type does not carry it", which would hide the gap instead of
+    // showing it in the breakdown.
+    for (const event of captured) {
+      expect(event.props).toHaveProperty("age_band");
+      expect(event.props.age_band).toBeNull();
     }
   });
 });
