@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { trackRewardViewed } from "@/analytics/track";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
@@ -15,6 +15,9 @@ import { useMilestone, useTodayEnergy } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
 /** Spec section 5 timings. Major moments linger, but never past 2.5s. */
+/** Stage order, used to record how far the child got before closing. */
+const REWARD_STAGES: readonly RewardStage[] = ["confirm", "energy", "change", "next"];
+
 const CONFIRM_MS = 900;
 const ENERGY_MS = 900;
 const CHANGE_MS = 1700;
@@ -47,16 +50,39 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
 
   const [stage, setStage] = useState<RewardStage>("confirm");
 
-  // Record that the feedback was actually shown, for the analytics export.
+  // How far the child actually got before closing. The sequence is skippable by
+  // design, so "was the behaviour -> world change beat actually seen?" is an
+  // open question the experiment has to answer, not assume.
+  // Note: skip jumps straight to the last stage, so counting the furthest stage
+  // *index* would score a skip as "watched all four". Once skipped, the count
+  // stops where it was.
+  const stagesSeen = useRef(0);
+  const skipped = useRef(false);
   useEffect(() => {
+    if (skipped.current) return;
+    const reached = REWARD_STAGES.indexOf(stage) + 1;
+    if (reached > stagesSeen.current) stagesSeen.current = reached;
+  }, [stage]);
+
+  const handleSkip = () => {
+    skipped.current = true;
+    setStage("next");
+  };
+
+  useEffect(() => {
+    if (reward.milestone) markMilestoneSeen(reward.milestone.id);
+  }, [reward, markMilestoneSeen]);
+
+  const handleDismiss = () => {
     trackRewardViewed({
       day: reward.day,
       goalType: reward.templateId,
       isMajor: reward.change.isMajor,
       target: reward.change.target,
+      stagesSeen: stagesSeen.current,
     });
-    if (reward.milestone) markMilestoneSeen(reward.milestone.id);
-  }, [reward, markMilestoneSeen]);
+    dismissReward();
+  };
 
   useEffect(() => {
     if (stage === "confirm") {
@@ -96,7 +122,7 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
         {stage !== "next" ? (
           <button
             type="button"
-            onClick={() => setStage("next")}
+            onClick={handleSkip}
             data-testid="reward-skip"
             className="tap-target rounded-full px-3 text-[13px] text-ink-faint"
           >
@@ -139,7 +165,7 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
             type="button"
             data-testid="reward-continue"
             onClick={() => {
-              dismissReward();
+              handleDismiss();
               if (!reward.isFinale) router.push("/");
             }}
             className="cta w-full bg-leaf-deep px-5 text-[15px] font-semibold text-white"

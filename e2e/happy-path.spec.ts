@@ -198,6 +198,46 @@ test("the initiative question is asked once and is exported", async ({ page }) =
   expect(parsed.days).toHaveLength(7);
 });
 
+test("reward_viewed records how much of the animation was actually watched", async ({
+  page,
+}) => {
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, [...DAILY_GOALS]);
+
+  // First goal: let the sequence run to the end on its own. completeGoal()
+  // always skips, so this one is driven by hand.
+  await page.goto("/goals");
+  await page.getByTestId(`goal-item-${DAILY_GOALS[0]}`).click();
+  await page.getByTestId("goal-confirm-yes").click();
+  await expect(page.getByTestId("reward-overlay")).toBeVisible();
+  await expect(page.getByTestId("reward-stage-next")).toBeVisible({ timeout: 15000 });
+  const initiative = page.getByTestId("initiative-self");
+  if (await initiative.isVisible().catch(() => false)) await initiative.click();
+  await page.getByTestId("reward-continue").click();
+
+  // Second goal: skip immediately, on stage 1.
+  await page.goto("/goals");
+  await page.getByTestId(`goal-item-${DAILY_GOALS[1]}`).click();
+  await page.getByTestId("goal-confirm-yes").click();
+  await expect(page.getByTestId("reward-overlay")).toBeVisible();
+  await page.getByTestId("reward-skip").click();
+  await page.getByTestId("reward-continue").click();
+
+  await page.goto("/debug/export");
+  await expect(page.getByTestId("export-page")).toBeVisible();
+  const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
+  const stages = parsed.events
+    .filter((e: { name: string }) => e.name === "reward_viewed")
+    .map((e: { props: { stages_seen: number } }) => e.props.stages_seen);
+
+  expect(stages).toHaveLength(2);
+  // Watched to the end.
+  expect(stages[0]).toBe(4);
+  // Skipping jumps to the last stage; if that were counted, this would be 4 too.
+  expect(stages[1]).toBe(1);
+});
+
 test("the debug panel is hidden without ?debug=1", async ({ page }) => {
   await resetApp(page);
   await completeFirstRun(page);

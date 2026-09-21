@@ -116,16 +116,26 @@ export function trackDayCompleted(input: {
 
 /* ------------------------------------------------------------------ reward */
 
+/**
+ * Fired when the reward moment closes, not when it opens.
+ *
+ * `stagesSeen` (1–4) is the point: the sequence is always skippable, so if
+ * every student taps skip then nobody ever sees behaviour -> world change and
+ * the whole P1 principle goes untested. This is the only way to know whether
+ * that happened, and one property answers it.
+ */
 export function trackRewardViewed(input: {
   day: number;
   goalType: string;
   isMajor: boolean;
   target: string;
+  stagesSeen: number;
 }): void {
   emit("reward_viewed", input.day, {
     goal_type: input.goalType,
     is_major: input.isMajor,
     reward_target: input.target,
+    stages_seen: input.stagesSeen,
   });
 }
 

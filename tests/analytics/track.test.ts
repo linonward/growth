@@ -51,7 +51,13 @@ describe("AC ④ unified event schema", () => {
       plantState: "seed",
       totalEnergy: 10,
     });
-    trackRewardViewed({ day: 1, goalType: "reading", isMajor: false, target: "pet" });
+    trackRewardViewed({
+      day: 1,
+      goalType: "reading",
+      isMajor: false,
+      target: "pet",
+      stagesSeen: 4,
+    });
     trackPetViewed({ day: 1, petState: "egg" });
     trackPlantViewed({ day: 1, plantState: "seed" });
     trackInitiativeAnswered({ day: 1, initiative: "self" });
@@ -103,7 +109,13 @@ describe("AC ⑤ every event carries the common properties", () => {
           totalEnergy: 70,
         }),
       () =>
-        trackRewardViewed({ day: 3, goalType: "study", isMajor: true, target: "pet" }),
+        trackRewardViewed({
+          day: 3,
+          goalType: "study",
+          isMajor: true,
+          target: "pet",
+          stagesSeen: 2,
+        }),
       () => trackPetViewed({ day: 3, petState: "baby" }),
       () => trackPlantViewed({ day: 3, plantState: "leaf" }),
       () => trackInitiativeAnswered({ day: 3, initiative: "prompted" }),
@@ -173,6 +185,20 @@ describe("AC ⑦ initiative is one event with a breakdown property", () => {
     // The breakdown is one query: filter on initiative.
     const answers = captured.map((e) => e.props.initiative);
     expect(answers).toEqual(["self", "prompted"]);
+  });
+});
+
+describe("reward_viewed records how much was actually watched", () => {
+  it("carries stages_seen so skipping is measurable", () => {
+    trackRewardViewed({
+      day: 2,
+      goalType: "math",
+      isMajor: false,
+      target: "plant",
+      stagesSeen: 1,
+    });
+    expect(last().name).toBe("reward_viewed");
+    expect(last().props.stages_seen).toBe(1);
   });
 });
 

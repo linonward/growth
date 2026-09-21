@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "verify": "pnpm check:ci && pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "verify": "pnpm check:ci && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "analyze": "node scripts/analyze-export.ts"
   },
   "dependencies": {
     "framer-motion": "^13.4.0",
