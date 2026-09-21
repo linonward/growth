@@ -328,13 +328,29 @@ Day 7 时相机左移 80px，露出右侧新区域（小溪、小屋、山丘）
 
 ### 主动性测量（spec §15）
 
-每天第一次完成任务后，在 Reward 第 4 段出现一次极轻量的二选一：
+每天第一次完成任务后，在 Reward 第 4 段出现一次极轻量的三选一：
 
 ```text
-今天是谁先想到打开成长岛的？ [ 我自己想起来的 ] [ 有人提醒我的 ]
+今天是怎么打开这个世界？
+自己打开，和有人叫你来，两种都可以。
+[ 我自己打开的 ]  [ 有人叫我来 ]  [ 先不回答 ]
 ```
 
-记录为 `initiative: "self" | "prompted"`，Day 4 也会保留。
+**这张卡片就是 SAAR 的测量本身，所以它的形态属于实验设计，不是文案：**
+
+- **两个选项视觉权重完全相同**（同样的边框、底色、字号、颜色）。任何不对称都会被
+  孩子读成"哪个才是正确答案"——原来的绿底/白底就是这么泄漏的。`e2e` 里有一条直接
+  断言两个按钮的 class 字符串相等。
+- **措辞是中性陈述**，不是相对比较；「提醒」隐含的负面去掉了。
+- **「先不回答」是第三个正式结果**，记为 `initiative: "unanswered"`，**计入 SAAR
+  分母**。只在"回答过的孩子"上算 SAAR 会系统性偏乐观 —— 没回答的那群恰好最可能
+  是被叫来的。
+- **同一天只问一次，而且不会纠缠**：未回答的问题会**持久化**，关掉 App 再打开仍会
+  看到（否则"第一个目标后没回答就关掉"的孩子永远拿不到这次数据，且这不是随机丢失）；
+  但**跨天就不再问** —— 那时它已经不是"今天"的问题了。
+- 同一天重复作答会被忽略，一次回答不会计入两次分母。
+
+Day 4 也会保留这个问题。
 
 ---
 
@@ -436,7 +452,7 @@ Phase 0 现在覆盖 6–12 岁小学阶段，而 6 岁和 11 岁不是同一群
 | `goal_selected` | `goal_type` |
 | `goal_completed` | `goal_type`, `energy_earned`, `pet_state`, `plant_state`, `total_energy` |
 | `reward_viewed` | `goal_type`, `is_major`, `reward_target` |
-| `initiative_answered` | `initiative: 'self' \| 'prompted'` |
+| `initiative_answered` | `initiative: 'self' \| 'prompted' \| 'unanswered'` |
 | `milestone_viewed` | `milestone_id` |
 | `day_completed` | `goals_completed`, `energy_earned` |
 | `day7_completed` | `total_energy` |
@@ -582,8 +598,11 @@ experiment_started → goal_selected → goal_completed → reward_viewed → wo
 对 `initiative_answered` 按 `initiative` 做 breakdown：
 
 ```text
-self / (self + prompted)
+self / (self + prompted + unanswered)
 ```
+
+**分母必须包含 `unanswered`。** 只在回答过的孩子上算，SAAR 会系统性偏乐观：
+跳过这个问题的孩子，恰好就是最可能"被叫来"的那一群。
 
 Phase 0 投资阈值暂定 **≥ 40%**。这是实验决策线，不是行业 benchmark。
 

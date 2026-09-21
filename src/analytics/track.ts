@@ -6,6 +6,7 @@ import { commonProps, type EventProps } from "@/analytics/properties";
 import type {
   AnalyticsEvent,
   AnalyticsEventName,
+  InitiativeAnswer,
   PetState,
   PlantState,
 } from "@/domain/types";
@@ -157,13 +158,19 @@ export function trackMilestoneViewed(input: { day: number; milestoneId: string }
 /**
  * One event, not two.
  *
- * `initiative_answered` + `initiative: 'self' | 'prompted'` gives the SAAR
- * breakdown as a single PostHog query; separate `initiative_self` /
- * `initiative_prompted` events would need reconciling in every chart.
+ * `initiative_answered` + `initiative: 'self' | 'prompted' | 'unanswered'`
+ * gives the SAAR breakdown as a single PostHog query; separate
+ * `initiative_self` / `initiative_prompted` events would need reconciling in
+ * every chart.
+ *
+ * `unanswered` is recorded deliberately. A child who was asked and moved on is
+ * a real outcome, and leaving it out would let SAAR be computed over only the
+ * children who answered — the group least likely to have been prompted, which
+ * biases the North Star in the flattering direction.
  */
 export function trackInitiativeAnswered(input: {
   day: number;
-  initiative: "self" | "prompted";
+  initiative: InitiativeAnswer;
 }): void {
   emit("initiative_answered", input.day, { initiative: input.initiative });
 }

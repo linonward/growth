@@ -341,6 +341,44 @@ describe("initiative capture", () => {
     for (const id of pickGoals(2, 3)) usePrototypeStore.getState().completeGoal(id);
     expect(usePrototypeStore.getState().pendingInitiativeDay).toBeNull();
   });
+
+  it("treats 先不回答 as an answer that stops the question", () => {
+    // Regression: an unanswered question used to stay pending, so it re-appeared
+    // on the home screen every time the student navigated there — a nag, and a
+    // gap that would let SAAR be computed over answerers only.
+    const ids = pickGoals(1, 3);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    expect(usePrototypeStore.getState().pendingInitiativeDay).toBe(1);
+
+    usePrototypeStore.getState().answerInitiative(1, "unanswered");
+
+    const state = usePrototypeStore.getState();
+    expect(state.pendingInitiativeDay).toBeNull();
+    expect(state.checkIns.find((c) => c.day === 1)?.initiative).toBe("unanswered");
+    expect(
+      state.events.some(
+        (e) => e.name === "initiative_answered" && e.props?.initiative === "unanswered",
+      ),
+    ).toBe(true);
+
+    // And it must not come back for the rest of the day.
+    usePrototypeStore.getState().dismissReward();
+    usePrototypeStore.getState().completeGoal(ids[1]);
+    expect(usePrototypeStore.getState().pendingInitiativeDay).toBeNull();
+  });
+
+  it("keeps the declined answer in SAAR's denominator", () => {
+    const ids = pickGoals(1, 3);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    usePrototypeStore.getState().answerInitiative(1, "unanswered");
+    usePrototypeStore.getState().dismissReward();
+    usePrototypeStore.getState().answerInitiative(1, "unanswered");
+
+    const summary = usePrototypeStore.getState().buildExport().summary;
+    expect(summary.initiativeUnanswered).toBe(1);
+    // One declined answer, no self answers: the honest rate is 0, not "no data".
+    expect(summary.selfInitiatedRate).toBe(0);
+  });
 });
 
 describe("analytics export", () => {
@@ -598,5 +636,64 @@ describe("age band recording", () => {
     adoptAgeBand();
 
     expect(getActiveAgeBand()).toBe("8-9");
+  });
+});
+
+describe("initiative question survives an app close", () => {
+  const openedAt = (iso: string) => [
+    { day: 1, openedAt: iso, initiative: undefined as undefined },
+  ];
+
+  it("restores an unanswered question from earlier the same day", () => {
+    // Regression: the pending question was transient, so a child who closed the
+    // app straight after their first goal was never asked at all. Those children
+    // are the ones least likely to answer "I opened it myself", so the loss was
+    // not random — it inflated SAAR.
+    usePrototypeStore.setState({
+      checkIns: openedAt("2026-09-21T09:00:00.000Z"),
+      pendingInitiativeDay: 1,
+      currentDay: 1,
+    });
+    usePrototypeStore
+      .getState()
+      .resumeInitiativeIfNeeded(new Date("2026-09-21T18:00:00.000Z"));
+    expect(usePrototypeStore.getState().pendingInitiativeDay).toBe(1);
+  });
+
+  it("does not resurrect yesterday's question", () => {
+    // Asking about "today" three days later would manufacture an answer.
+    usePrototypeStore.setState({
+      checkIns: openedAt("2026-09-18T09:00:00.000Z"),
+      pendingInitiativeDay: 1,
+      currentDay: 1,
+    });
+    usePrototypeStore
+      .getState()
+      .resumeInitiativeIfNeeded(new Date("2026-09-21T09:00:00.000Z"));
+    expect(usePrototypeStore.getState().pendingInitiativeDay).toBeNull();
+  });
+
+  it("does not re-open a question that was answered or declined", () => {
+    for (const answer of ["self", "prompted", "unanswered"] as const) {
+      usePrototypeStore.setState({
+        checkIns: [{ day: 1, openedAt: START, initiative: answer }],
+        pendingInitiativeDay: null,
+        currentDay: 1,
+      });
+      usePrototypeStore.getState().resumeInitiativeIfNeeded(new Date(START));
+      expect(usePrototypeStore.getState().pendingInitiativeDay).toBeNull();
+    }
+  });
+
+  it("keeps the question out of a day that is not the current one", () => {
+    usePrototypeStore.setState({
+      checkIns: openedAt("2026-09-21T09:00:00.000Z"),
+      pendingInitiativeDay: 1,
+      currentDay: 2,
+    });
+    usePrototypeStore
+      .getState()
+      .resumeInitiativeIfNeeded(new Date("2026-09-21T18:00:00.000Z"));
+    expect(usePrototypeStore.getState().pendingInitiativeDay).toBe(1);
   });
 });

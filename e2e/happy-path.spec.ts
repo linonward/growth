@@ -189,7 +189,9 @@ test("the initiative question is asked once and is exported", async ({ page }) =
 
   await page.goto("/debug/export");
   await expect(page.getByTestId("export-page")).toBeVisible();
-  await expect(page.getByTestId("export-summary")).toContainText("自主 / 被提醒：");
+  await expect(page.getByTestId("export-summary")).toContainText(
+    "自主 / 被叫来 / 没回答：",
+  );
   const json = (await page.getByTestId("export-json").textContent()) ?? "";
   const parsed = JSON.parse(json);
   expect(parsed.summary.initiativeSelf).toBe(1);
@@ -197,6 +199,47 @@ test("the initiative question is asked once and is exported", async ({ page }) =
   expect(parsed.summary.goalsCompleted).toBe(2);
   expect(parsed.summary.totalEnergy).toBe(20);
   expect(parsed.days).toHaveLength(7);
+});
+
+test("自主发起的问题不暗示答案，也不纠缠", async ({ page }) => {
+  // SAAR is the North Star, so this prompt *is* the measurement. It used to show
+  // the answer: `我自己想起来的` was a green button and `有人提醒我的` a grey one,
+  // and declining was not possible at all — the question stayed pending and
+  // re-appeared on the home screen every time the child went there.
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await completeGoal(page, DAILY_GOALS[0]);
+
+  // The card is on the home screen with the question still open.
+  await page.goto("/");
+  const prompt = page.getByTestId("initiative-prompt");
+  await expect(prompt).toBeVisible();
+
+  // Neither option may look more correct than the other. This is the actual
+  // regression, and it is invisible to unit tests.
+  const [selfClass, promptedClass] = await Promise.all([
+    page.getByTestId("initiative-self").getAttribute("class"),
+    page.getByTestId("initiative-prompted").getAttribute("class"),
+  ]);
+  expect(selfClass).toBe(promptedClass);
+
+  // A real third outcome, so a child is never forced to guess.
+  await page.getByTestId("initiative-skip").click();
+  await expect(prompt).toHaveCount(0);
+
+  // Asking once means once: reloading must not bring it back.
+  await page.reload();
+  await expect(page.getByTestId("initiative-prompt")).toHaveCount(0);
+
+  await page.goto("/debug/export");
+  const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
+  expect(parsed.summary.initiativeUnanswered).toBe(1);
+  expect(parsed.summary.initiativeSelf).toBe(0);
+  // Declined answers stay in the denominator: with no self answers the honest
+  // rate is 0, not null.
+  expect(parsed.summary.selfInitiatedRate).toBe(0);
+  await expect(page.getByTestId("export-saar")).toHaveText("0%");
 });
 
 test("the experimenter records an age band and it reaches the export", async ({

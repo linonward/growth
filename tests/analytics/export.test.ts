@@ -127,3 +127,99 @@ describe("buildPostWeekReport", () => {
     expect(payload.summary.dayRetention["7"]).toBe(true);
   });
 });
+
+/**
+ * SAAR is the North Star, and its denominator is the easiest thing in the whole
+ * experiment to get quietly wrong: counting only the children who answered
+ * removes the group most likely to have been prompted.
+ */
+describe("selfInitiatedRate — the unanswered must stay in the denominator", () => {
+  function build(events: AnalyticsEvent[]) {
+    return buildExportPayload({
+      participantId: "p-1",
+      profile: {
+        worldName: "小光岛",
+        petName: "小光",
+        petSpecies: "fox",
+        startedAt: START,
+        ageBand: "6-7",
+      },
+      goalsByDay: {},
+      checkIns: [],
+      events,
+      day7Completed: false,
+      totalEnergy: 0,
+      currentDay: 3,
+    });
+  }
+
+  const answer = (day: number, initiative: string): AnalyticsEvent => ({
+    id: `i-${day}-${initiative}`,
+    name: "initiative_answered",
+    day,
+    at: at(START, day - 1),
+    props: { initiative },
+  });
+
+  it("is null when the question was never asked", () => {
+    expect(build([]).summary.selfInitiatedRate).toBeNull();
+  });
+
+  it("is 1 when every answer was self", () => {
+    const summary = build([answer(1, "self"), answer(2, "self")]).summary;
+    expect(summary.selfInitiatedRate).toBe(1);
+    expect(summary.initiativeUnanswered).toBe(0);
+  });
+
+  it("counts an explicit skip as asked-and-not-self", () => {
+    // Two self and two skipped. Excluding the skips would report 100%.
+    const summary = build([
+      answer(1, "self"),
+      answer(2, "self"),
+      answer(3, "unanswered"),
+      answer(4, "unanswered"),
+    ]).summary;
+    expect(summary.initiativeSelf).toBe(2);
+    expect(summary.initiativeUnanswered).toBe(2);
+    expect(summary.selfInitiatedRate).toBe(0.5);
+  });
+
+  it("reports all three outcomes separately", () => {
+    const summary = build([
+      answer(1, "self"),
+      answer(2, "prompted"),
+      answer(3, "unanswered"),
+    ]).summary;
+    expect(summary.initiativeSelf).toBe(1);
+    expect(summary.initiativePrompted).toBe(1);
+    expect(summary.initiativeUnanswered).toBe(1);
+    expect(summary.selfInitiatedRate).toBeCloseTo(1 / 3);
+  });
+
+  it("carries the day's answer into the day report", () => {
+    // The day report reads `checkIns`, which the store writes at the same time
+    // as the event — the pairing is asserted in the store tests.
+    const payload = buildExportPayload({
+      participantId: "p-1",
+      profile: {
+        worldName: "小光岛",
+        petName: "小光",
+        petSpecies: "fox",
+        startedAt: START,
+        ageBand: "6-7",
+      },
+      goalsByDay: {},
+      checkIns: [
+        { day: 2, initiative: "unanswered", openedAt: at(START, 1) },
+        { day: 3, initiative: "self", openedAt: at(START, 2) },
+      ],
+      events: [],
+      day7Completed: false,
+      totalEnergy: 0,
+      currentDay: 3,
+    });
+    expect(payload.days.find((d) => d.day === 2)?.initiative).toBe("unanswered");
+    expect(payload.days.find((d) => d.day === 3)?.initiative).toBe("self");
+    expect(payload.days.find((d) => d.day === 4)?.initiative).toBeNull();
+  });
+});

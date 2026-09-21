@@ -47,6 +47,7 @@ import type {
   DailyCheckIn,
   DailyGoal,
   GoalTemplate,
+  InitiativeAnswer,
   PetSpecies,
   RewardMoment,
   UserProfile,
@@ -102,7 +103,12 @@ export interface PrototypeStoreState {
   dismissFinale: () => void;
   /** Re-arms the Day 7 finale if the student never got to see it. */
   resumeFinaleIfNeeded: () => void;
-  answerInitiative: (day: number, value: "self" | "prompted") => void;
+  /**
+   * Re-arms the initiative question when the child never answered it and the
+   * day it belongs to is still today.
+   */
+  resumeInitiativeIfNeeded: (now?: Date) => void;
+  answerInitiative: (day: number, value: InitiativeAnswer) => void;
   recordDayOpened: (day: number) => void;
   syncDay: (now?: Date) => void;
   dismissDayStart: () => void;
@@ -444,7 +450,34 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         }
       },
 
+      resumeInitiativeIfNeeded: (now = new Date()) => {
+        const state = get();
+        const day = state.pendingInitiativeDay;
+        if (day === null || day !== state.currentDay) return;
+        // Already answered (including "declined") — nothing to resume.
+        const checkIn = state.checkIns.find((c) => c.day === day);
+        if (checkIn?.initiative !== undefined) return;
+        // Only while the question is still about today. A prompt that survived
+        // an app close is worth restoring; one from three days ago is not a
+        // question any more, and asking it would manufacture an answer.
+        if (!checkIn?.openedAt) return;
+        const sameDay =
+          new Date(checkIn.openedAt).toISOString().slice(0, 10) ===
+          now.toISOString().slice(0, 10);
+        if (!sameDay) {
+          set({ pendingInitiativeDay: null });
+          return;
+        }
+        set({ pendingInitiativeDay: day });
+      },
+
       answerInitiative: (day, value) => {
+        // One answer per day, whatever the answer was. Without this guard a
+        // second call adds another `initiative_answered` event, which inflates
+        // the SAAR denominator (or double-counts the numerator).
+        if (get().checkIns.find((c) => c.day === day)?.initiative !== undefined) {
+          return;
+        }
         set((state) => {
           const exists = state.checkIns.some((c) => c.day === day);
           const checkIns = exists
@@ -459,6 +492,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
               state.pendingInitiativeDay === day ? null : state.pendingInitiativeDay,
           };
         });
+        // `unanswered` is recorded like any other answer: it stops the prompt
+        // from being asked again all day, and it keeps SAAR's denominator from
+        // silently dropping the children who did not answer.
         trackInitiativeAnswered({ day, initiative: value });
       },
 
@@ -700,6 +736,11 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         hasNamedPet: state.hasNamedPet,
         day7Completed: state.day7Completed,
         continueRequested: state.continueRequested,
+        // Persisted so an unanswered initiative question survives a reload or an
+        // app close on the same day. Losing it would drop those children from
+        // SAAR's denominator — and they are the ones least likely to answer
+        // "I opened it myself", so the loss is not random.
+        pendingInitiativeDay: state.pendingInitiativeDay,
         // `events` is deliberately NOT persisted here. It lives in its own key
         // (see analytics/persistence.ts) because it dominated every write.
       }),
