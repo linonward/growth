@@ -40,9 +40,9 @@ export function Clouds({ count, y = 0 }: { count: number; y?: number }) {
             style={{ animationDelay: `${i * 1.4}s` }}
             data-testid="cloud"
           >
-            <ellipse cx={0} cy={0} rx={30} ry={16} fill="#ffffff" />
-            <ellipse cx={-20} cy={4} rx={18} ry={12} fill="#ffffff" />
-            <ellipse cx={20} cy={5} rx={20} ry={13} fill="#ffffff" />
+            <ellipse cx={0} cy={0} rx={30} ry={16} fill={C.cloud} />
+            <ellipse cx={-20} cy={4} rx={18} ry={12} fill={C.cloud} />
+            <ellipse cx={20} cy={5} rx={20} ry={13} fill={C.cloud} />
           </g>
         </g>
       ))}
@@ -64,24 +64,24 @@ export function Ground({ lush }: { lush: boolean }) {
       {/* distant hills — gives the horizon depth */}
       <path
         d="M-40 232 C 6 198 58 194 100 220 C 138 244 168 232 208 210 C 252 186 302 190 346 218 C 388 244 434 232 470 220 L470 320 L-40 320 Z"
-        fill="#D9ECD1"
+        fill={C.ground.hill}
       />
       <path
         d="M-40 240 C 30 222 92 226 152 234 C 222 243 302 228 362 234 C 402 238 440 232 470 236 L470 330 L-40 330 Z"
-        fill={lush ? "#C6E4BB" : "#D3EAC8"}
+        fill={lush ? C.ground.band.lush : C.ground.band.plain}
       />
       {/* main ground bands */}
       <path
         d="M-40 250 C 60 236 140 248 220 246 C 310 244 390 232 470 244 L470 360 L-40 360 Z"
-        fill={lush ? "#B7DCAA" : "#C7E5BB"}
+        fill={lush ? C.ground.mid.lush : C.ground.mid.plain}
       />
       <path
         d="M-40 272 C 70 258 150 270 230 268 C 320 266 400 254 470 266 L470 360 L-40 360 Z"
-        fill={lush ? "#9BD08F" : "#B4DDA6"}
+        fill={lush ? C.ground.near.lush : C.ground.near.plain}
       />
       <path
         d="M-40 302 C 80 290 170 300 260 298 C 350 296 420 288 470 296 L470 360 L-40 360 Z"
-        fill={lush ? "#7FB87A" : "#98C88F"}
+        fill={lush ? C.ground.front.lush : C.ground.front.plain}
       />
       {/* grass tufts */}
       <g stroke={C.leafDeep} strokeWidth={2} strokeLinecap="round" opacity={0.45}>
@@ -101,10 +101,10 @@ export function Ground({ lush }: { lush: boolean }) {
 export function Rock() {
   return (
     <g transform="translate(60 268)">
-      <ellipse cx={0} cy={4} rx={26} ry={6} fill="#000" opacity={0.08} />
+      <ellipse cx={0} cy={4} rx={26} ry={6} fill={C.shadow} opacity={0.08} />
       <path d="M-22 2 C -20 -12 -8 -20 2 -18 C 14 -16 22 -6 22 2 Z" fill={C.rock} />
       <path d="M-22 2 C -20 -6 -14 -12 -6 -14 L-2 2 Z" fill={C.rockDark} opacity={0.5} />
-      <path d="M2 -18 C 12 -16 20 -8 21 0 L8 1 Z" fill="#D3CDC3" opacity={0.7} />
+      <path d="M2 -18 C 12 -16 20 -8 21 0 L8 1 Z" fill={C.rockLight} opacity={0.7} />
     </g>
   );
 }
@@ -207,10 +207,10 @@ export function MysteryGate({ open }: { open: boolean }) {
   if (open) return <RainbowGate />;
   return (
     <g transform="translate(348 250)" data-testid="mystery-gate">
-      <ellipse cx={0} cy={8} rx={30} ry={6} fill="#000" opacity={0.08} />
+      <ellipse cx={0} cy={8} rx={30} ry={6} fill={C.shadow} opacity={0.08} />
       {/* stone doorway */}
       <path d="M-20 6 L-20 -22 C -20 -38 20 -38 20 -22 L20 6 Z" fill={C.mysteryDeep} />
-      <path d="M-13 6 L-13 -20 C -13 -31 13 -31 13 -20 L13 6 Z" fill="#4A4066" />
+      <path d="M-13 6 L-13 -20 C -13 -31 13 -31 13 -20 L13 6 Z" fill={C.gateInner} />
       {/* vines */}
       <g stroke={C.leafDeep} strokeWidth={3} strokeLinecap="round" fill="none">
         <path d="M-20 2 C -26 -8 -18 -16 -22 -26" />
@@ -253,7 +253,7 @@ export function MysteryGate({ open }: { open: boolean }) {
 
 /** Day 7: the gate becomes an arch and the world opens up behind it. */
 function RainbowGate() {
-  const bands = ["#F6B6C8", "#FFD9A0", "#B7DCAA", "#BFE6FF", "#C9B8E8"];
+  const bands = C.rainbow;
   return (
     <g transform="translate(348 250)" data-testid="rainbow-gate">
       {bands.map((color, i) => (
@@ -282,17 +282,23 @@ export function NewArea() {
   return (
     <g data-testid="new-area">
       {/* distant hills */}
-      <path d="M390 210 C 410 176 436 180 452 208 L452 250 L390 250 Z" fill="#A9D3A0" />
-      <path d="M430 214 C 448 188 464 192 478 214 L478 250 L430 250 Z" fill="#8FC489" />
+      <path
+        d="M390 210 C 410 176 436 180 452 208 L452 250 L390 250 Z"
+        fill={C.newAreaHill}
+      />
+      <path
+        d="M430 214 C 448 188 464 192 478 214 L478 250 L430 250 Z"
+        fill={C.newAreaHillDeep}
+      />
       {/* stream */}
       <path
         d="M390 284 C 414 276 432 294 456 284 L456 304 C 432 314 414 296 390 304 Z"
-        fill="#A9DCF2"
+        fill={C.water}
       />
       <path
         d="M398 290 C 414 285 430 298 446 291"
         fill="none"
-        stroke="#ffffff"
+        stroke={C.waterLight}
         strokeWidth={2}
         opacity={0.7}
       />
@@ -304,13 +310,13 @@ export function NewArea() {
           width={28}
           height={18}
           rx={3}
-          fill="#FFF3DF"
+          fill={C.cabinWall}
           stroke={C.soil}
           strokeWidth={1.5}
         />
         <path d="M-18 -13 L0 -28 L18 -13 Z" fill={C.blossomDeep} />
         <rect x={-4} y={-6} width={8} height={10} rx={2} fill={C.soil} />
-        <rect x={6} y={-11} width={6} height={6} rx={1.5} fill="#BFE6FF" />
+        <rect x={6} y={-11} width={6} height={6} rx={1.5} fill={C.cabinWindow} />
       </g>
       {/* new flowers */}
       <FlowerAt x={404} y={276} scale={0.8} color={C.blossom} />
