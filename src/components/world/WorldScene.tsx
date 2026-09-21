@@ -74,9 +74,18 @@ export function WorldScene({
     >
       <defs>
         <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={worldState.skyGlow ? "#9FD8FF" : "#C6E3F2"} />
-          <stop offset="55%" stopColor={worldState.skyGlow ? "#CFEBFF" : "#E0EFF7"} />
-          <stop offset="100%" stopColor={worldState.skyGlow ? "#F4FBFF" : "#F0F6F9"} />
+          <stop
+            offset="0%"
+            stopColor={(worldState.skyGlow ? C.sky.bright : C.sky.dim)[0]}
+          />
+          <stop
+            offset="55%"
+            stopColor={(worldState.skyGlow ? C.sky.bright : C.sky.dim)[1]}
+          />
+          <stop
+            offset="100%"
+            stopColor={(worldState.skyGlow ? C.sky.bright : C.sky.dim)[2]}
+          />
         </linearGradient>
         <radialGradient id="glowRing">
           <stop offset="0%" stopColor={C.sun} stopOpacity="0.55" />

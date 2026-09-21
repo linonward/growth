@@ -45,14 +45,14 @@ export function PetSprite({ state, x, y, name }: PetSpriteProps) {
 function Egg() {
   return (
     <g>
-      <ellipse cx={0} cy={-4} rx={26} ry={10} fill="#000" opacity={0.07} />
+      <ellipse cx={0} cy={-4} rx={26} ry={10} fill={C.shadow} opacity={0.07} />
       <path
         d="M0 -56 C 17 -56 27 -34 27 -20 C 27 -6 15 2 0 2 C -15 2 -27 -6 -27 -20 C -27 -34 -17 -56 0 -56 Z"
         fill={C.eggShell}
         stroke={C.eggShade}
         strokeWidth={1.5}
       />
-      <ellipse cx={-8} cy={-32} rx={7} ry={10} fill="#fff" opacity={0.55} />
+      <ellipse cx={-8} cy={-32} rx={7} ry={10} fill={C.shine} opacity={0.55} />
       <circle cx={7} cy={-40} r={3} fill={C.eggSpot} />
       <circle cx={-6} cy={-18} r={4} fill={C.eggSpot} opacity={0.8} />
       <circle cx={11} cy={-14} r={2.5} fill={C.eggSpot} opacity={0.8} />
@@ -63,14 +63,14 @@ function Egg() {
 function CrackedEgg() {
   return (
     <g>
-      <ellipse cx={0} cy={-4} rx={26} ry={10} fill="#000" opacity={0.07} />
+      <ellipse cx={0} cy={-4} rx={26} ry={10} fill={C.shadow} opacity={0.07} />
       <path
         d="M0 -56 C 17 -56 27 -34 27 -20 C 27 -6 15 2 0 2 C -15 2 -27 -6 -27 -20 C -27 -34 -17 -56 0 -56 Z"
         fill={C.eggShell}
         stroke={C.eggShade}
         strokeWidth={1.5}
       />
-      <ellipse cx={-9} cy={-33} rx={6} ry={9} fill="#fff" opacity={0.5} />
+      <ellipse cx={-9} cy={-33} rx={6} ry={9} fill={C.shine} opacity={0.5} />
       {/* The crack that makes Day 2 unmistakable. */}
       <path
         d="M-16 -34 L-7 -28 L-12 -20 L-2 -14 L-6 -4"
@@ -109,7 +109,7 @@ function Fox({ scale, glow }: { scale: number; glow: boolean }) {
           </g>
         </>
       ) : null}
-      <ellipse cx={0} cy={0} rx={24} ry={7} fill="#000" opacity={0.08} />
+      <ellipse cx={0} cy={0} rx={24} ry={7} fill={C.shadow} opacity={0.08} />
 
       {/* tail */}
       <path
@@ -153,7 +153,7 @@ function Fox({ scale, glow }: { scale: number; glow: boolean }) {
       <circle cx={27} cy={-34} r={2} fill={C.eye} />
       {/* eye */}
       <circle cx={13} cy={-40} r={2.4} fill={C.eye} />
-      <circle cx={13.8} cy={-40.8} r={0.9} fill="#fff" />
+      <circle cx={13.8} cy={-40.8} r={0.9} fill={C.shine} />
     </g>
   );
 }

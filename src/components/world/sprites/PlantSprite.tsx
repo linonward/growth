@@ -35,7 +35,7 @@ export function PlantSprite({ state, x, y }: PlantSpriteProps) {
       data-testid="plant-sprite"
       data-plant-state={state}
     >
-      <ellipse cx={0} cy={0} rx={24} ry={6} fill="#000" opacity={0.07} />
+      <ellipse cx={0} cy={0} rx={24} ry={6} fill={C.shadow} opacity={0.07} />
       <ellipse cx={0} cy={-2} rx={17} ry={5} fill={C.soilDeep} opacity={0.45} />
 
       <Seed />
@@ -56,7 +56,7 @@ function Seed() {
   return (
     <g>
       <ellipse cx={0} cy={-5} rx={7} ry={4.5} fill={C.soil} />
-      <ellipse cx={0} cy={-7} rx={3.2} ry={3.8} fill="#8B6C43" />
+      <ellipse cx={0} cy={-7} rx={3.2} ry={3.8} fill={C.seed} />
     </g>
   );
 }
