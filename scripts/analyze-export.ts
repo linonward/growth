@@ -44,9 +44,53 @@ export interface RawExport {
   participantId: string;
   /** See ExperimentExport.timezoneOffsetMinutes. Falls back to this machine. */
   timezoneOffsetMinutes?: number;
+  /**
+   * The participant's age band, recorded by the experimenter (one school year
+   * wide — see `src/domain/age-band.ts`). Optional: v1 exports and any data
+   * collected before the field existed do not have it. Absent means
+   * "unsegmented", never a guess.
+   */
+  profile?: { ageBand?: string | null };
   summary?: Record<string, unknown>;
   events: RawEvent[];
 }
+
+/**
+ * The age bands the report knows how to name.
+ *
+ * Deliberately duplicated from `src/domain/age-band.ts` instead of imported:
+ * this script runs on plain node with no aliases and must keep working when it
+ * is handed a file produced by an older or modified build. The duplication is
+ * safe in one direction only — this list *validates*, it never invents, so an
+ * unknown band degrades to "unsegmented" rather than silently forming a cohort
+ * nobody defined.
+ */
+const AGE_BANDS = ["6-7", "7-8", "8-9", "9-10", "10-11", "11-12"] as const;
+
+/** Labels for the cohort table, so a row reads as a grade and not a range. */
+const AGE_BAND_LABELS: Record<string, string> = {
+  "6-7": "一年级",
+  "7-8": "二年级",
+  "8-9": "三年级",
+  "9-10": "四年级",
+  "10-11": "五年级",
+  "11-12": "六年级",
+};
+
+/**
+ * Below this many participants, a cohort is reported but not judged.
+ *
+ * One child is an anecdote: averaging a single 6-year-old's `stages_seen` and
+ * printing it next to a 12-year-old's creates a false comparison, which is
+ * exactly the mistake this section exists to prevent.
+ */
+const MIN_COHORT_SIZE = 2;
+
+/**
+ * `stages_seen` below this means the behaviour → world change beat was skipped.
+ * Same threshold `renderParticipant` uses for the per-participant signal.
+ */
+const STAGES_SEEN_FLOOR = 2.5;
 
 /* --------------------------------------------------------------- constants */
 
@@ -102,6 +146,8 @@ interface GoalCompletion {
 
 export interface ParticipantReport {
   participantId: string;
+  /** `null` when the export does not say — reported as unsegmented, not guessed. */
+  ageBand: string | null;
   daysActive: number;
   completions: number;
 
@@ -128,11 +174,35 @@ export interface ParticipantReport {
   stagesSeen: number[];
 }
 
+/**
+ * Which age band this export belongs to.
+ *
+ * Prefers `profile.ageBand` (the field the analysis is built on) and falls back
+ * to the common event property, because the two are written on different code
+ * paths and a band recorded mid-session only reaches the events that follow it.
+ * An unrecognised value is treated as unrecorded: a typo must not create a
+ * cohort, and it must not be silently dropped either — it lands in the
+ * "unsegmented" row where the analyst can see it.
+ */
+export function resolveAgeBand(raw: RawExport): string | null {
+  const fromProfile = raw.profile?.ageBand ?? null;
+  if (fromProfile && (AGE_BANDS as readonly string[]).includes(fromProfile)) {
+    return fromProfile;
+  }
+  for (const event of raw.events) {
+    const value = event.props?.age_band;
+    if (typeof value === "string" && (AGE_BANDS as readonly string[]).includes(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export function analyse(raw: RawExport): ParticipantReport {
   const events = [...raw.events].sort(
     (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
   );
-
+  const ageBand = resolveAgeBand(raw);
   const completions: GoalCompletion[] = [];
   for (const event of events) {
     if (event.name !== "goal_completed") continue;
@@ -220,6 +290,7 @@ export function analyse(raw: RawExport): ParticipantReport {
 
   return {
     participantId: raw.participantId,
+    ageBand,
     daysActive,
     completions: completions.length,
     burstPairs,
@@ -292,16 +363,169 @@ export function renderParticipant(report: ParticipantReport): string {
     );
   }
 
+  // The remark has to match the flag: a ✅ followed by "动画基本被跳过" reads as a
+  // contradiction, and this table gets pasted into the report verbatim.
+  const watchedTooLittle = averageStages !== null && averageStages < STAGES_SEEN_FLOOR;
   rows.push(
-    `| reward 观看 | 平均 ${averageStages === null ? "—" : averageStages.toFixed(1)}/4 段（${report.stagesSeen.length} 次） | ${flag((averageStages ?? 4) < 2.5)} < 2.5 说明动画基本被跳过 |`,
+    `| reward 观看 | 平均 ${averageStages === null ? "—" : averageStages.toFixed(1)}/4 段（${report.stagesSeen.length} 次） | ${
+      averageStages === null
+        ? "没有 reward_viewed，无法判读"
+        : `${flag(watchedTooLittle)} ${
+            watchedTooLittle
+              ? `< ${STAGES_SEEN_FLOOR} 说明动画基本被跳过`
+              : `≥ ${STAGES_SEEN_FLOOR} —— 行为→世界变化这一段被看到了`
+          }`
+    } |`,
   );
 
   return [
-    `**participant \`${report.participantId.slice(0, 8)}…\`** — 活跃 ${report.daysActive} 天，完成 ${report.completions} 个目标`,
+    `**participant \`${report.participantId.slice(0, 8)}…\`** — ${
+      report.ageBand === null
+        ? "**年龄未记录**"
+        : `年龄组 ${report.ageBand}（${AGE_BAND_LABELS[report.ageBand] ?? "?"}）`
+    } · 活跃 ${report.daysActive} 天，完成 ${report.completions} 个目标`,
     "",
     "| 信号 | 值 | 判读 |",
     "| --- | --- | --- |",
     ...rows,
+  ].join("\n");
+}
+
+/* ---------------------------------------------------------------- cohorts */
+
+export interface AgeCohort {
+  /** `null` = every participant whose export does not carry a recorded band. */
+  ageBand: string | null;
+  label: string;
+  participants: number;
+  rewardViews: number;
+  /** Null when nobody in the cohort has a `reward_viewed` event. */
+  averageStagesSeen: number | null;
+}
+
+/** Group participants by age band, largest sample first within each group. */
+export function cohortByAge(reports: readonly ParticipantReport[]): AgeCohort[] {
+  const cohorts = new Map<string | null, AgeCohort>();
+  const order: Array<string | null> = [...AGE_BANDS, null];
+
+  for (const report of reports) {
+    const band = report.ageBand;
+    let cohort = cohorts.get(band);
+    if (!cohort) {
+      cohort = {
+        ageBand: band,
+        label: band === null ? "未记录" : (AGE_BAND_LABELS[band] ?? band),
+        participants: 0,
+        rewardViews: 0,
+        averageStagesSeen: null,
+      };
+      cohorts.set(band, cohort);
+    }
+    cohort.participants += 1;
+    cohort.rewardViews += report.stagesSeen.length;
+  }
+
+  for (const cohort of cohorts.values()) {
+    const views = reports
+      .filter((r) => r.ageBand === cohort.ageBand)
+      .flatMap((r) => r.stagesSeen);
+    cohort.averageStagesSeen =
+      views.length === 0 ? null : views.reduce((a, b) => a + b, 0) / views.length;
+  }
+
+  return order
+    .filter((band) => cohorts.has(band))
+    .map((band) => cohorts.get(band) as AgeCohort);
+}
+
+/**
+ * The age-band section.
+ *
+ * Why this is its own table rather than one more row in the summary: pooling
+ * ages hides exactly the effect the 6–12 expansion is looking for. A 6-year-old
+ * who never reads the reward text and a 12-year-old who watches all four stages
+ * average out to a comfortable 2.5, and the pooled number would declare the
+ * behaviour → world change beat "seen" when for half the range it never was.
+ * That is Simpson's paradox, and the fix is the same as everywhere else in this
+ * script: report the segments, and say how many participants are unsegmented.
+ */
+export function renderAgeCohorts(cohorts: readonly AgeCohort[]): string {
+  const lines: string[] = ["## 按年龄分档\n"];
+  const total = cohorts.reduce((n, c) => n + c.participants, 0);
+  const unsegmented = cohorts.find((c) => c.ageBand === null)?.participants ?? 0;
+
+  lines.push("| 年龄组 | 参与者 | reward 观看次数 | 平均段数 | 判读 |");
+  lines.push("| --- | --- | --- | --- | --- |");
+
+  for (const cohort of cohorts) {
+    let verdict: string;
+    if (cohort.participants < MIN_COHORT_SIZE) {
+      verdict = `样本不足（${cohort.participants} 人），不能判读`;
+    } else if (cohort.averageStagesSeen === null) {
+      verdict = "无 reward_viewed，无法判读";
+    } else if (cohort.ageBand === null) {
+      verdict = "这只是未分档者的均值，不能当作任何一个年龄组";
+    } else {
+      verdict =
+        cohort.averageStagesSeen < STAGES_SEEN_FLOOR
+          ? `${flag(true)} 低于 ${STAGES_SEEN_FLOOR} —— 这个年龄段的动画基本被跳过`
+          : `${flag(false)} ≥ ${STAGES_SEEN_FLOOR} —— 行为→世界变化这一段被看到了`;
+    }
+    lines.push(
+      `| ${cohort.label} | ${cohort.participants} | ${cohort.rewardViews} | ${
+        cohort.averageStagesSeen === null ? "—" : cohort.averageStagesSeen.toFixed(1)
+      }/4 | ${verdict} |`,
+    );
+  }
+
+  if (total === 0) {
+    lines.push("| — | 0 | 0 | — | 没有参与者 |");
+  }
+
+  if (unsegmented > 0) {
+    lines.push("");
+    lines.push(
+      `> ⚠️ ${unsegmented}/${total} 位参与者**没有年龄记录**，无法归入任何年龄组。` +
+        `这部分数据只能整体看，不能用来回答「低龄段是否成立」。` +
+        `补齐方法见 README「年龄分档」：在设备交接前用 \`?debug=1\` 面板录入。`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export interface CohortTotals {
+  burstPairs: number;
+  totalPairs: number;
+  shortfallCount: number;
+  shortfallChecked: number;
+  oddHourCount: number;
+  schoolCount: number;
+  stagesSeen: number[];
+}
+
+/**
+ * The across-everyone table.
+ *
+ * Its `reward 观看` row deliberately carries no ✅/⚠️: with mixed ages that
+ * number is an average of different behaviours, not a finding. The verdict
+ * belongs to `renderAgeCohorts`, where it is per band.
+ */
+export function renderSummary(totals: CohortTotals, participantCount: number): string {
+  const avgStages =
+    totals.stagesSeen.length === 0
+      ? null
+      : totals.stagesSeen.reduce((a, b) => a + b, 0) / totals.stagesSeen.length;
+
+  return [
+    `## 汇总（${participantCount} 人）`,
+    "",
+    "| 信号 | 值 | 判读 |",
+    "| --- | --- | --- |",
+    `| 连点率 | ${totals.burstPairs}/${totals.totalPairs} (${pct(totals.burstPairs, totals.totalPairs)}) | ${flag(totals.totalPairs > 0 && totals.burstPairs / totals.totalPairs > 0.2)} |`,
+    `| 时长不足 | ${totals.shortfallCount}/${totals.shortfallChecked} (${pct(totals.shortfallCount, totals.shortfallChecked)}) | ${flag(totals.shortfallChecked > 0 && totals.shortfallCount / totals.shortfallChecked > 0.2)} |`,
+    `| 时段异常 | ${totals.oddHourCount}/${totals.schoolCount} (${pct(totals.oddHourCount, totals.schoolCount)}) | ${flag(totals.schoolCount > 0 && totals.oddHourCount / totals.schoolCount > 0.2)} |`,
+    `| reward 观看 | 平均 ${avgStages === null ? "—" : avgStages.toFixed(1)}/4 段 | **这是混龄均值，不是结论** —— 逐档判读见上面的「按年龄分档」 |`,
   ].join("\n");
 }
 
@@ -350,26 +574,17 @@ function main(): void {
     console.log("");
   }
 
+  const cohorts = cohortByAge(reports);
+  console.log(renderAgeCohorts(cohorts));
+  console.log("");
+  if (cohorts.some((c) => c.ageBand === null)) {
+    console.log(
+      "> 本报告里**未分档**的参与者不能用于任何分龄结论；汇总表的所有数字都包含他们。\n",
+    );
+  }
+
   if (reports.length > 1) {
-    const avgStages =
-      totals.stagesSeen.length === 0
-        ? null
-        : totals.stagesSeen.reduce((a, b) => a + b, 0) / totals.stagesSeen.length;
-    console.log(`## 汇总（${reports.length} 人）\n`);
-    console.log("| 信号 | 值 | 判读 |");
-    console.log("| --- | --- | --- |");
-    console.log(
-      `| 连点率 | ${totals.burstPairs}/${totals.totalPairs} (${pct(totals.burstPairs, totals.totalPairs)}) | ${flag(totals.totalPairs > 0 && totals.burstPairs / totals.totalPairs > 0.2)} |`,
-    );
-    console.log(
-      `| 时长不足 | ${totals.shortfallCount}/${totals.shortfallChecked} (${pct(totals.shortfallCount, totals.shortfallChecked)}) | ${flag(totals.shortfallChecked > 0 && totals.shortfallCount / totals.shortfallChecked > 0.2)} |`,
-    );
-    console.log(
-      `| 时段异常 | ${totals.oddHourCount}/${totals.schoolCount} (${pct(totals.oddHourCount, totals.schoolCount)}) | ${flag(totals.schoolCount > 0 && totals.oddHourCount / totals.schoolCount > 0.2)} |`,
-    );
-    console.log(
-      `| reward 观看 | 平均 ${avgStages === null ? "—" : avgStages.toFixed(1)}/4 段 | ${flag((avgStages ?? 4) >= 2.5)} |`,
-    );
+    console.log(renderSummary(totals, reports.length));
     console.log("");
   }
 
@@ -379,6 +594,9 @@ function main(): void {
   console.log("- 报告里必须区分：哪些结论靠行为数据，哪些靠留存数据");
   console.log("- 连点率高的孩子很可能早已发现可以乱点，其流失属于自我淘汰，");
   console.log("  应从留存分析里单独标注，而不是计入「世界设计不够吸引人」");
+  console.log("- **年龄分档的均值不能相加**：某一档跳过动画，和另一档看完，");
+  console.log("  混在一起会得到一个「看起来正常」的数字。逐档判读，样本不足的档不判读。");
+  console.log("- 未分档的参与者只能整体看，**不能**用来支持任何分龄结论。");
 }
 
 // Only run when invoked directly, so tests can import the analysis.

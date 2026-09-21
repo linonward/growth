@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyse,
+  cohortByAge,
   type RawExport,
+  renderAgeCohorts,
   renderParticipant,
+  renderSummary,
+  resolveAgeBand,
 } from "../../scripts/analyze-export.ts";
 
 /**
@@ -198,6 +202,27 @@ describe("renderParticipant — flags point the right way", () => {
     expect(line).toContain("⚠️");
   });
 
+  it("does not put 'animation was skipped' next to a ✅", () => {
+    // The table is pasted into the report verbatim, so the remark has to match
+    // the flag it sits behind.
+    const line =
+      renderParticipant(analyse(honest()))
+        .split("\n")
+        .find((l) => l.startsWith("| reward 观看")) ?? "";
+    expect(line).toContain("✅");
+    expect(line).not.toContain("被跳过");
+  });
+
+  it("says it cannot judge when there are no reward views at all", () => {
+    const raw = honest();
+    raw.events = raw.events.filter((e) => e.name !== "reward_viewed");
+    const line =
+      renderParticipant(analyse(raw))
+        .split("\n")
+        .find((l) => l.startsWith("| reward 观看")) ?? "";
+    expect(line).toContain("无法判读");
+  });
+
   it("only treats 100% completion as suspicious when bursts corroborate it", () => {
     const honestLine =
       renderParticipant(analyse(honest()))
@@ -218,5 +243,204 @@ describe("renderParticipant — flags point the right way", () => {
         .split("\n")
         .find((l) => l.startsWith("| 最短单日跨度")) ?? "";
     expect(line).toContain("⚠️");
+  });
+});
+
+/* -------------------------------------------------------------- age bands */
+
+/** The same export, attributed to an age band, with a chosen watch depth. */
+function withBand(
+  raw: RawExport,
+  ageBand: string | null,
+  stagesSeen: number,
+  id = raw.participantId,
+): RawExport {
+  return {
+    ...raw,
+    participantId: id,
+    profile: ageBand === null ? {} : { ageBand },
+    events: raw.events.map((e) =>
+      e.name === "reward_viewed"
+        ? { ...e, props: { ...e.props, stages_seen: stagesSeen } }
+        : e,
+    ),
+  };
+}
+
+describe("resolveAgeBand — never invents a cohort", () => {
+  it("reads the band from the profile", () => {
+    expect(resolveAgeBand(withBand(honest(), "6-7", 4))).toBe("6-7");
+  });
+
+  it("falls back to the common event property", () => {
+    const raw = withBand(honest(), null, 4);
+    raw.events = raw.events.map((e) => ({
+      ...e,
+      props: { ...e.props, age_band: "9-10" },
+    }));
+    expect(resolveAgeBand(raw)).toBe("9-10");
+  });
+
+  it("prefers the profile when both are present", () => {
+    const raw = withBand(honest(), "6-7", 4);
+    raw.events = raw.events.map((e) => ({
+      ...e,
+      props: { ...e.props, age_band: "9-10" },
+    }));
+    expect(resolveAgeBand(raw)).toBe("6-7");
+  });
+
+  it("treats v1 exports without any band field as unrecorded", () => {
+    expect(resolveAgeBand(honest())).toBeNull();
+    expect(analyse(honest()).ageBand).toBeNull();
+  });
+
+  it("treats an unknown band as unrecorded rather than forming a phantom cohort", () => {
+    // A typo or a hand-edited file must not become a row of its own.
+    expect(resolveAgeBand(withBand(honest(), "5-6", 4))).toBeNull();
+    expect(resolveAgeBand(withBand(honest(), "grade-1", 4))).toBeNull();
+  });
+});
+
+describe("cohortByAge — pooling ages would hide the effect", () => {
+  it("averages stages_seen per band instead of across everyone", () => {
+    const reports = [
+      analyse(withBand(honest(), "6-7", 1, "a")),
+      analyse(withBand(honest(), "6-7", 2, "b")),
+      analyse(withBand(honest(), "11-12", 4, "c")),
+      analyse(withBand(honest(), "11-12", 4, "d")),
+    ];
+    const cohorts = cohortByAge(reports);
+
+    const young = cohorts.find((c) => c.ageBand === "6-7");
+    const old = cohorts.find((c) => c.ageBand === "11-12");
+    expect(young?.participants).toBe(2);
+    expect(young?.averageStagesSeen).toBe(1.5);
+    expect(old?.averageStagesSeen).toBe(4);
+
+    // The pooled number is 2.75 — above the 2.5 floor, so it would have declared
+    // the beat "seen" while the entire 6-7 cohort never watched it. This is the
+    // exact failure the per-band table exists to prevent.
+    const pooled = reports.flatMap((r) => r.stagesSeen);
+    expect(pooled.reduce((a, b) => a + b, 0) / pooled.length).toBeGreaterThan(2.5);
+    expect(young?.averageStagesSeen).toBeLessThan(2.5);
+  });
+
+  it("keeps unsegmented participants in their own row", () => {
+    const reports = [
+      analyse(withBand(honest(), "6-7", 4, "a")),
+      analyse(withBand(honest(), null, 4, "b")),
+    ];
+    const cohorts = cohortByAge(reports);
+
+    expect(cohorts.map((c) => c.ageBand)).toEqual(["6-7", null]);
+    expect(cohorts.find((c) => c.ageBand === null)?.participants).toBe(1);
+  });
+
+  it("orders bands from youngest to oldest, with unsegmented last", () => {
+    const reports = ["11-12", "6-7", "9-10", null].map((band, i) =>
+      analyse(withBand(honest(), band, 4, `p${i}`)),
+    );
+    expect(cohortByAge(reports).map((c) => c.ageBand)).toEqual([
+      "6-7",
+      "9-10",
+      "11-12",
+      null,
+    ]);
+  });
+
+  it("reports null rather than 0 when a cohort has no reward views", () => {
+    const raw = withBand(honest(), "6-7", 4);
+    raw.events = raw.events.filter((e) => e.name !== "reward_viewed");
+    const cohort = cohortByAge([analyse(raw)])[0];
+    expect(cohort.rewardViews).toBe(0);
+    expect(cohort.averageStagesSeen).toBeNull();
+  });
+});
+
+describe("renderAgeCohorts — says what the data cannot answer", () => {
+  it("refuses to judge a cohort of one", () => {
+    const out = renderAgeCohorts(
+      cohortByAge([analyse(withBand(honest(), "6-7", 1, "a"))]),
+    );
+    expect(out).toContain("样本不足");
+    // The point of the warning: no ✅/⚠️ verdict on an anecdote.
+    expect(out).not.toContain("动画基本被跳过");
+  });
+
+  it("flags a sufficiently sampled band whose animation is skipped", () => {
+    const reports = [
+      analyse(withBand(honest(), "6-7", 1, "a")),
+      analyse(withBand(honest(), "6-7", 2, "b")),
+    ];
+    const out = renderAgeCohorts(cohortByAge(reports));
+    expect(out).toContain("一年级");
+    expect(out).toContain("动画基本被跳过");
+  });
+
+  it("does not pass an unsegmented average off as an age group", () => {
+    const reports = [
+      analyse(withBand(honest(), null, 4, "a")),
+      analyse(withBand(honest(), null, 4, "b")),
+    ];
+    const out = renderAgeCohorts(cohortByAge(reports));
+    expect(out).toContain("不能当作任何一个年龄组");
+  });
+
+  it("warns loudly about how much of the sample cannot be segmented", () => {
+    const reports = [
+      analyse(withBand(honest(), "6-7", 4, "a")),
+      analyse(withBand(honest(), null, 4, "b")),
+    ];
+    const out = renderAgeCohorts(cohortByAge(reports));
+    expect(out).toContain("1/2 位参与者**没有年龄记录**");
+  });
+
+  it("stays readable when there are no participants at all", () => {
+    expect(renderAgeCohorts([])).toContain("没有参与者");
+  });
+});
+
+describe("renderSummary — the pooled table claims less, not more", () => {
+  const totals = {
+    burstPairs: 0,
+    totalPairs: 10,
+    shortfallCount: 0,
+    shortfallChecked: 10,
+    oddHourCount: 0,
+    schoolCount: 10,
+    stagesSeen: [4, 4, 1, 1],
+  };
+
+  it("refuses to give the mixed-age reward average a verdict", () => {
+    const line =
+      renderSummary(totals, 4)
+        .split("\n")
+        .find((l) => l.startsWith("| reward 观看")) ?? "";
+    // 2.5 pooled, from a 4 and a 1 cohort — a flag here would read as "fine".
+    expect(line).toContain("混龄均值");
+    expect(line).not.toContain("✅");
+    expect(line).not.toContain("⚠️");
+  });
+
+  it("still reports the credibility signals, which are age-independent", () => {
+    const out = renderSummary(totals, 4);
+    expect(out).toContain("| 连点率 |");
+    expect(out).toContain("| 时长不足 |");
+    expect(out).toContain("| 时段异常 |");
+  });
+});
+
+describe("renderParticipant — the age band is visible per participant", () => {
+  it("names the band and its school year", () => {
+    const out = renderParticipant(analyse(withBand(honest(), "6-7", 4)));
+    expect(out).toContain("年龄组 6-7（一年级）");
+  });
+
+  it("says the band is missing instead of leaving it out", () => {
+    // An unrecorded band has to be visible on the participant line, otherwise
+    // the cohort table's "unsegmented" row looks like a rounding error.
+    const out = renderParticipant(analyse(honest()));
+    expect(out).toContain("年龄未记录");
   });
 });
