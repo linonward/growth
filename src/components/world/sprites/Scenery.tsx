@@ -375,6 +375,82 @@ export function Burst() {
   );
 }
 
+/**
+ * The star garden: one star per day the student actually did something.
+ *
+ * This is the world's behaviour-driven axis. The pet and plant ladders are
+ * driven by accumulated energy, which arrives in steps of 10 — so a child
+ * completing one goal a day crosses a threshold only every second or third day,
+ * and on the other days the only new thing used to be a calendar reveal they
+ * had not earned. One star per active day means the world changes every day the
+ * child shows up, at any completion rate.
+ *
+ * Stars are drawn rather than emoji for the same reason the nav icons are: an
+ * emoji carries its own weight and palette, and seven of them would not read as
+ * one system. Six slots stay in the ground so the garden is a record of the
+ * week rather than an open-ended counter, and a faint dashed ring marks each
+ * slot still empty, which is the "there is more" hint (P3) without a number.
+ */
+export function StarGarden({ earned }: { earned: number }) {
+  // One slot per day of the experiment, so the garden is a record of the whole
+  // week rather than an open-ended counter. The slots are always drawn, and the
+  // empty ones keep a faint dashed outline: that is the "there is more coming"
+  // hint (P3) without printing a number at the child.
+  const slots = Array.from({ length: STAR_SLOTS }).map((_, i) => ({
+    x: (i - (STAR_SLOTS - 1) / 2) * 10,
+    filled: i < earned,
+    key: i,
+  }));
+
+  return (
+    <g transform="translate(78 244)" data-testid="star-garden" data-stars={earned}>
+      <ellipse cx={0} cy={26} rx={38} ry={7} fill={C.soil} opacity={0.3} />
+      {slots.map((slot) =>
+        slot.filled ? (
+          <path
+            key={slot.key}
+            d={starPath(slot.x, 0, 5.2, 2.3)}
+            fill={C.sun}
+            stroke={C.sunCore}
+            strokeWidth={0.8}
+            strokeLinejoin="round"
+          />
+        ) : (
+          <circle
+            key={slot.key}
+            cx={slot.x}
+            cy={0}
+            r={3.8}
+            fill="none"
+            stroke={C.soilDeep}
+            strokeWidth={0.9}
+            strokeDasharray="1.8 2.2"
+            opacity={0.5}
+          />
+        ),
+      )}
+    </g>
+  );
+}
+
+/** One star per day of the experiment — no more, no fewer. */
+const STAR_SLOTS = 7;
+
+/** Five-pointed star, so the garden needs no star glyph from the emoji font. */
+function starPath(cx: number, cy: number, outer: number, inner: number): string {
+  const points: string[] = [];
+  for (let i = 0; i < 10; i += 1) {
+    const radius = i % 2 === 0 ? outer : inner;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    points.push(
+      `${(cx + Math.cos(angle) * radius).toFixed(1)} ${(
+        cy + Math.sin(angle) * radius
+      ).toFixed(1)}`,
+    );
+  }
+  return `M${points.join(" L")} Z`;
+}
+
 export function sceneFlags(world: WorldState) {
   return {
     flower: world.flowerUnlocked,
@@ -383,5 +459,6 @@ export function sceneFlags(world: WorldState) {
     newArea: world.newAreaUnlocked,
     rock: world.rockUnlocked,
     skyGlow: world.skyGlow,
+    stars: world.starsEarned,
   };
 }

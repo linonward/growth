@@ -195,11 +195,27 @@ export function selectTodayEnergy(state: PrototypeStoreState): number {
   return selectTodayCompletedCount(state) * ENERGY_PER_GOAL;
 }
 
+/**
+ * How many days the student completed at least one goal on.
+ *
+ * The one behaviour-driven counter the world reads directly. It is derived from
+ * `goalsByDay` rather than stored, so it cannot drift from the goals themselves
+ * and a reset clears it for free.
+ */
+export function selectActiveDays(state: PrototypeStoreState): number {
+  let days = 0;
+  for (const goals of Object.values(state.goalsByDay)) {
+    if (goals.some((g) => g.completed)) days += 1;
+  }
+  return days;
+}
+
 export function selectGrowth(state: PrototypeStoreState) {
   return getGrowthState(
     state.currentDay,
     selectTotalEnergy(state),
     selectTodayEnergy(state),
+    selectActiveDays(state),
   );
 }
 
@@ -334,6 +350,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           beforeEnergy,
           state.profile.petName,
           todayEnergyAfter,
+          // Days that already had an action before this one. If this is the
+          // day's first completed goal, the star garden grows by one.
+          selectActiveDays(state),
         );
         const milestone = detectDayMilestone(
           day,
@@ -557,6 +576,9 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           beforeEnergy,
           state.profile.petName,
           selectTodayEnergy(get()),
+          // Debug path: the day is already fully completed, so the garden cannot
+          // grow again — pass the count that makes after == before.
+          selectActiveDays(get()) - 1,
         );
         const milestone = detectDayMilestone(
           day,

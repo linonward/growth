@@ -112,6 +112,23 @@ export interface WorldState {
   rockUnlocked: boolean;
   /** Day 1 progressive detail: the sky wakes up after the first goal. */
   skyGlow: boolean;
+  /**
+   * How many stars the garden holds: one per day the student actually did
+   * something, capped at the current day.
+   *
+   * This is the world's second, behaviour-driven axis, and it exists because
+   * the pet/plant ladders alone cannot give every completion rate a daily
+   * change. Energy arrives in steps of 10, so a child completing one goal a day
+   * crosses a threshold only every second or third day; on the days in between
+   * the only new things (flower, butterfly, gate) were revealed by the calendar
+   * and would have appeared even if the child had done nothing.
+   *
+   * Stars never unlock story content and never touch the Day Gate — they are a
+   * visible record of "I showed up", which is exactly what the experiment is
+   * about (P1: the first feedback is the world changing, and it should change
+   * because of what the child did, not because a date arrived).
+   */
+  starsEarned: number;
 }
 
 export interface GrowthState {

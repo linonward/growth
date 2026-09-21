@@ -16,11 +16,16 @@ import { getWorldState } from "./world";
  *
  * Every page calls this instead of scattering threshold logic through the UI
  * (spec section 17).
+ *
+ * `activeDays` is how many days the student completed at least one goal on. It
+ * feeds only the star garden — the behaviour-driven axis that gives the world a
+ * change on days when no energy threshold is crossed.
  */
 export function getGrowthState(
   day: number,
   totalEnergy: number,
   todayEnergy: number,
+  activeDays = 0,
 ): GrowthState {
   return {
     currentDay: clampDay(day),
@@ -28,7 +33,7 @@ export function getGrowthState(
     todayEnergy: Math.max(0, todayEnergy),
     petState: getPetState(day, totalEnergy, todayEnergy),
     plantState: getPlantState(day, totalEnergy, todayEnergy),
-    worldState: getWorldState(day, totalEnergy, todayEnergy),
+    worldState: getWorldState(day, totalEnergy, todayEnergy, activeDays),
   };
 }
 
