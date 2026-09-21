@@ -58,8 +58,8 @@ describe("world colours live in the palette", () => {
 });
 
 describe("palette shape", () => {
-  it("names a default theme and keeps it the only one for now", () => {
-    expect(DEFAULT_THEME).toBe("default");
+  it("names the default theme, which every new world starts on", () => {
+    expect(DEFAULT_THEME).toBe("sunny");
   });
 
   it("keeps the surfaces a theme must replace whole", () => {

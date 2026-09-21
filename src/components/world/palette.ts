@@ -105,14 +105,10 @@ export const PALETTE = {
 
 export type Palette = typeof PALETTE;
 
-/**
- * The looks the world can have.
- *
- * Only one today. The id lives in the profile so a theme is a property of the
- * child's world rather than a global setting — and so it reaches the export,
- * where it is the thing the analysis needs in order to compare cohorts.
+/*
+ * The theme *identifier* lives in `domain/world-theme.ts` — it is data about a
+ * world, not presentation — and is re-exported here so scene code has one
+ * import for anything colour-related.
  */
-export type WorldThemeId = "default";
-
-/** The look every world starts with, and the one every export names. */
-export const DEFAULT_THEME: WorldThemeId = "default";
+export type { WorldThemeId } from "@/domain/world-theme";
+export { DEFAULT_THEME } from "@/domain/world-theme";

@@ -705,3 +705,74 @@ test("animated scenery keeps its position", async ({ page }) => {
   expect(flowers.x).toBeGreaterThan(0.6);
   expect(flowers.y).toBeGreaterThan(0.5);
 });
+
+test("世界主题：用星星解锁，换上之后世界真的变了", async ({ page }) => {
+  // The unlock economy the user asked for. What this test protects is the part
+  // that is easy to get wrong: that a locked look cannot be worn, that the star
+  // garden is what pays for it, and that switching actually repaints the world
+  // rather than only moving a label.
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // Day 1: nothing earned, so only the default look is available.
+  await page.goto("/");
+  await expect(page.getByTestId("theme-sunny")).toHaveAttribute("data-active", "true");
+  await expect(page.getByTestId("theme-night")).toHaveAttribute("data-locked", "true");
+  await expect(page.getByTestId("theme-autumn")).toHaveAttribute("data-locked", "true");
+  await expect(page.getByTestId("theme-progress")).toContainText("再 1 颗");
+
+  // Tapping a locked look must do nothing at all.
+  await page.getByTestId("theme-night").click({ force: true });
+  await expect(page.getByTestId("theme-sunny")).toHaveAttribute("data-active", "true");
+
+  // The colours each look paints must actually differ, or "switching" would be
+  // a label change. Read from the swatches, which render the real palette.
+  const sky = async (id: string) =>
+    page.getByTestId(`theme-swatch-${id}`).getAttribute("data-sky");
+  const [sunnySky, nightSky, autumnSky] = await Promise.all([
+    sky("sunny"),
+    sky("night"),
+    sky("autumn"),
+  ]);
+  expect(new Set([sunnySky, nightSky, autumnSky]).size).toBe(3);
+
+  // Earn one star: the day's first completed goal.
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await completeGoal(page, DAILY_GOALS[0]);
+
+  // The reward moment announces it, because a child has to be told.
+  await page.goto("/");
+  await expect(page.getByTestId("theme-night")).toHaveAttribute("data-locked", "false");
+  await expect(page.getByTestId("theme-autumn")).toHaveAttribute("data-locked", "true");
+  await expect(page.getByTestId("theme-progress")).toContainText("再 1 颗");
+
+  // Now it can be worn, and the scene must repaint.
+  const sceneTheme = () => page.getByTestId("world-scene").getAttribute("data-theme");
+  expect(await sceneTheme()).toBe(sunnySky);
+  await page.getByTestId("theme-night").click();
+  await expect(page.getByTestId("theme-night")).toHaveAttribute("data-active", "true");
+  await expect(page.getByTestId("theme-sunny")).toHaveAttribute("data-active", "false");
+  expect(await sceneTheme()).toBe(nightSky);
+
+  // It survives a reload, and it is part of the exported world.
+  await page.reload();
+  await page.waitForTimeout(600);
+  expect(await sceneTheme()).toBe(nightSky);
+  await page.goto("/debug/export");
+  const parsed = JSON.parse((await page.getByTestId("export-json").textContent()) ?? "");
+  expect(parsed.profile.worldTheme).toBe("night");
+});
+
+test("解锁新主题的那一刻会在奖励里说出来", async ({ page }) => {
+  // Without this the child earns the star and never learns what it bought.
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, [DAILY_GOALS[0]]);
+
+  await page.goto("/goals");
+  await page.getByTestId(`goal-item-${DAILY_GOALS[0]}`).click();
+  await page.getByTestId("goal-confirm-yes").click();
+  await expect(page.getByTestId("reward-overlay")).toBeVisible();
+  await skipRewardToNext(page);
+  await expect(page.getByTestId("theme-unlock-note")).toContainText("星空");
+});

@@ -6,6 +6,7 @@
  */
 
 import type { RewardChange } from "./reward";
+import type { WorldThemeId } from "./world-theme";
 
 /**
  * Where a goal sits in the day: at home studying, at school, or in daily life.
@@ -151,6 +152,17 @@ export interface UserProfile {
    * unsegmented rather than guessing a band.
    */
   ageBand?: AgeBand | null;
+  /**
+   * Which look this child's world is wearing.
+   *
+   * Lives on the profile rather than in a global setting because it belongs to
+   * *this* world — and because that is how it reaches the export, where the
+   * analysis has to be able to tell cohorts apart by it.
+   *
+   * Optional: worlds created before themes existed have no value, and the
+   * default is applied on read (`DEFAULT_THEME`) rather than migrated.
+   */
+  worldTheme?: WorldThemeId;
 }
 
 /**
@@ -192,6 +204,14 @@ export interface RewardMoment {
   isFinale: boolean;
   totalEnergyAfter: number;
   todayEnergyAfter: number;
+  /**
+   * Set when this completion was the one that opened a new world theme.
+   *
+   * A property of the moment rather than an event: the unlock is a fact about
+   * the child's world, and this is how the feedback can mention it without
+   * adding a fifteenth analytics event.
+   */
+  unlockedThemeId?: WorldThemeId;
 }
 
 /**

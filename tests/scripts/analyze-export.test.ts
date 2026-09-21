@@ -542,11 +542,6 @@ describe("post-week return — the primary acceptance point", () => {
 });
 
 describe("renderPostWeekVerdict — the acceptance point is not a pooled number", () => {
-  const withPostWeek = (raw: RawExport, postWeek: RawExport["postWeek"]): RawExport => ({
-    ...raw,
-    postWeek,
-  });
-
   it("warns when a pass is carried by one age group", () => {
     // The trap this exists for: pooled 50% looks like a pass, while the target
     // age band came back exactly zero times.

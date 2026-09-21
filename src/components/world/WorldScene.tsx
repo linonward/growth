@@ -1,6 +1,5 @@
 "use client";
 
-import { PALETTE as C } from "@/components/world/palette";
 import { PetSprite } from "@/components/world/sprites/PetSprite";
 import { PlantSprite } from "@/components/world/sprites/PlantSprite";
 import {
@@ -14,6 +13,7 @@ import {
   StarGarden,
   Sun,
 } from "@/components/world/sprites/Scenery";
+import { useWorldColors } from "@/components/world/ThemeProvider";
 import type { PetSpecies, PetState, PlantState, WorldState } from "@/domain/types";
 
 /** Scene coordinate layout. Exported so the page can place tap targets on top. */
@@ -61,6 +61,7 @@ export function WorldScene({
   highlight = null,
   className,
 }: WorldSceneProps) {
+  const C = useWorldColors();
   const lush = worldState.newAreaUnlocked || worldState.flowerUnlocked;
 
   return (
@@ -71,6 +72,7 @@ export function WorldScene({
       aria-label={`${day} 天的成长世界`}
       data-testid="world-scene"
       data-day={day}
+      data-theme={C.sky.bright[0]}
     >
       <defs>
         <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
