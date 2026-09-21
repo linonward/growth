@@ -22,6 +22,49 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 明确不做（spec §0）：登录注册、后端、AI、社交、排行榜、商城、金币、付费、
 老师端、家长后台、多宠物、多地图。持久化只用 `localStorage`。
 
+## 工作方式：不要直接改 `main`（强制）
+
+**永远不要直接在 `main` 上提交或推送。** 每一个改动，无论多小、哪怕只改一个错别字，
+都必须走分支 + PR：
+
+```bash
+git switch -c <type>/<short-name>     # feat/goal-library、fix/tz-signal、docs/...
+# 改代码
+pnpm verify && pnpm e2e
+git commit
+git push -u origin <type>/<short-name>
+gh pr create                          # 标题必须符合 <type>(<scope>): <subject>
+```
+
+等检查全绿，**squash merge**，然后删除分支。
+
+理由不是流程洁癖：
+
+- **`main` 就是线上。** Vercel 已接 Git 自动部署，push 到 `main` 会立刻发布到 Production。
+  直推等于跳过「合并前先看一眼」。
+- **PR 是唯一会强制跑检查的地方。** 直接在 `main` 上提交会绕过 `ci.yml` 和 `pr.yml` ——
+  而这两个 workflow 是唯一**机械化**拦住「偷偷加了第 15 个 analytics 事件」
+  「目标库文案违规」「Day Gate 被绕过」的东西。这些错误不会报错，只会让实验失去意义。
+- **PR 模板的纪律清单需要在合并前回答。** 直推 `main` 没有任何人会回头看那张表。
+
+### 已经在 `main` 上提交了，但还没 push
+
+不要 push。把提交移到新分支上：
+
+```bash
+git switch -c <type>/<short-name>      # 新分支带着这些提交
+git switch main
+git reset --hard origin/main           # main 回到远程状态
+git switch <type>/<short-name>
+git push -u origin <type>/<short-name>
+gh pr create
+```
+
+### 如果已经 push 到 `main` 了
+
+线上已经部署了。**不要 force push 改写历史**（那样线上会和仓库对不上）。
+正常做法是赶紧补一个 revert 或修正的 PR，让 `main` 重新回到可发布状态。
+
 ## 常用命令
 
 | 命令 | 说明 |
@@ -175,8 +218,9 @@ schema 里没有 reset 事件）—— Debug 按钮很容易误触，
 
 ## PR 流程
 
-`main` 上的提交都来自 PR + **squash merge**，所以**PR 标题就是 commit subject**，
-必须符合 `<type>(<scope>): <subject>`（`pr.yml` 会拦）。`ci.yml` 在 PR 上也会跑。
+见上面的「工作方式」—— 不走 PR 的改动一律不接受。合并方式固定为 **squash merge**，
+所以**PR 标题就是 `main` 上的 commit subject**，必须符合
+`<type>(<scope>): <subject>`（`pr.yml` 会拦）。`ci.yml` 在 PR 上也会跑。
 
 PR 模板（`.github/pull_request_template.md`）里那份「纪律检查」清单，是本文件那些
 硬约束的提交前版本。改这个仓库时请逐条确认，不要当摆设 —— 尤其是
