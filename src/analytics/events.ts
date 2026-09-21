@@ -1,5 +1,9 @@
 import { commonProps } from "@/analytics/properties";
-import type { AnalyticsEvent, AnalyticsEventName } from "@/domain/types";
+import type {
+  AnalyticsEvent,
+  AnalyticsEventName,
+  InitiativeAnswer,
+} from "@/domain/types";
 
 const MAX_EVENTS = 2000;
 
@@ -63,11 +67,12 @@ export function eventDays(
  * Count `initiative_answered` events with a given answer.
  *
  * The answer is a property, not a separate event, so the breakdown is one
- * PostHog query instead of two events to reconcile.
+ * PostHog query instead of two events to reconcile. `unanswered` is counted the
+ * same way, which is what makes the SAAR denominator honest.
  */
 export function countInitiative(
   events: readonly AnalyticsEvent[],
-  value: "self" | "prompted",
+  value: InitiativeAnswer,
 ): number {
   return events.filter(
     (e) => e.name === "initiative_answered" && e.props?.initiative === value,

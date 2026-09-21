@@ -4,6 +4,7 @@ import type {
   AnalyticsEvent,
   DailyCheckIn,
   DailyGoal,
+  InitiativeAnswer,
   UserProfile,
 } from "@/domain/types";
 
@@ -12,7 +13,7 @@ export interface DayReport {
   selected: number;
   completed: number;
   energy: number;
-  initiative: "self" | "prompted" | null;
+  initiative: InitiativeAnswer | null;
   openedAt: string | null;
   /** Distinct templates completed that day, for per-category analysis. */
   categories: string[];
@@ -27,11 +28,22 @@ export interface ExperimentSummary {
   totalEnergy: number;
   initiativeSelf: number;
   initiativePrompted: number;
+  /**
+   * Asked and explicitly declined.
+   *
+   * Reported because SAAR must not be computed over answers only: the children
+   * who skip the question are the ones most likely to have been prompted, so
+   * dropping them biases the North Star upwards.
+   */
+  initiativeUnanswered: number;
   /** True for each of the 7 days the student came back to. */
   dayRetention: Record<string, boolean>;
   continueIntent: boolean;
   day7Completed: boolean;
-  /** Self-initiated action rate across the whole experiment. */
+  /**
+   * `self / (self + prompted + unanswered)` — see `initiativeUnanswered`.
+   * Null when the question never came up at all.
+   */
   selfInitiatedRate: number | null;
   rewardViewedCount: number;
 }
@@ -172,7 +184,10 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
   const openedDays = eventDays(events, "session_started");
   const initiativeSelf = countInitiative(events, "self");
   const initiativePrompted = countInitiative(events, "prompted");
-  const answered = initiativeSelf + initiativePrompted;
+  const initiativeUnanswered = countInitiative(events, "unanswered");
+  // The denominator includes the children who declined to answer. Excluding them
+  // would compute SAAR over the least likely to have been prompted.
+  const asked = initiativeSelf + initiativePrompted + initiativeUnanswered;
 
   const dayRetention: Record<string, boolean> = {};
   for (let day = 1; day <= TOTAL_DAYS; day += 1) {
@@ -197,10 +212,11 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
       totalEnergy,
       initiativeSelf,
       initiativePrompted,
+      initiativeUnanswered,
       dayRetention,
       continueIntent: countEvents(events, "continue_requested") > 0,
       day7Completed,
-      selfInitiatedRate: answered === 0 ? null : initiativeSelf / answered,
+      selfInitiatedRate: asked === 0 ? null : initiativeSelf / asked,
       rewardViewedCount: countEvents(events, "reward_viewed"),
     },
     days,

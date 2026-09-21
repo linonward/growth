@@ -153,9 +153,21 @@ export interface UserProfile {
   ageBand?: AgeBand | null;
 }
 
+/**
+ * The answer to the self-initiated-action question (spec section 15), or the
+ * explicit refusal to answer it.
+ *
+ * `unanswered` is a first-class outcome, not a missing value. It is the honest
+ * score for a child who was asked and moved on, it keeps the question from
+ * being asked again, and it makes the SAAR denominator visible: without it,
+ * "5 of 8 children opened the app themselves" quietly omits the three who never
+ * answered, which is exactly the group most likely to have been prompted.
+ */
+export type InitiativeAnswer = "self" | "prompted" | "unanswered";
+
 export interface DailyCheckIn {
   day: number;
-  initiative?: "self" | "prompted";
+  initiative?: InitiativeAnswer;
   openedAt: string;
 }
 

@@ -70,6 +70,10 @@ export function useHydrateStore(): boolean {
         afterSync.recordDayOpened(afterSync.currentDay);
         // Re-show the Day 7 finale if it was earned but never watched.
         afterSync.resumeFinaleIfNeeded();
+        // Same idea for the initiative question: a child who closed the app
+        // right after their first goal would otherwise never be asked, which
+        // would silently drop them from SAAR's denominator.
+        afterSync.resumeInitiativeIfNeeded();
       }
     })();
   }, []);

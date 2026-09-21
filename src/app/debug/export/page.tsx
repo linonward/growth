@@ -74,10 +74,24 @@ export default function ExportPage() {
             </span>
           </p>
           <p className="mt-1">
-            自主 / 被提醒：
+            自主 / 被叫来 / 没回答：
             <span className="font-semibold text-ink">
-              {payload.summary.initiativeSelf} / {payload.summary.initiativePrompted}
+              {payload.summary.initiativeSelf} / {payload.summary.initiativePrompted} /{" "}
+              {payload.summary.initiativeUnanswered}
             </span>
+          </p>
+          <p className="mt-1">
+            自主发起率 SAAR：
+            <span className="font-semibold text-ink" data-testid="export-saar">
+              {payload.summary.selfInitiatedRate === null
+                ? "还没有被问过"
+                : `${Math.round(payload.summary.selfInitiatedRate * 100)}%`}
+            </span>
+            {payload.summary.initiativeUnanswered > 0 ? (
+              <span className="text-ink-soft">
+                （未回答计入分母 —— 不这样算会把最可能被叫来的孩子漏掉）
+              </span>
+            ) : null}
           </p>
           {/*
             The D8 window is the primary acceptance point, and it is a property
