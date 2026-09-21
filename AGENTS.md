@@ -27,6 +27,18 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 **永远不要直接在 `main` 上提交或推送。** 每一个改动，无论多小、哪怕只改一个错别字，
 都必须走分支 + PR：
 
+> 这条规则**已经开启分支保护强制执行**（`enforce_admins=true`，所以管理员也绕不过）。
+> 直接 push 会被拒绝：
+>
+> ```text
+> remote: error: GH006: Protected branch update failed for refs/heads/main.
+> remote: - Changes must be made through a pull request.
+> remote: - 3 of 3 required status checks are expected.
+> ```
+>
+> 三个必需检查：`Format, types, lint, unit tests, build`、`End-to-end (mobile chromium)`、
+> `PR title convention`。
+
 ```bash
 git switch -c <type>/<short-name>     # feat/goal-library、fix/tz-signal、docs/...
 # 改代码
@@ -62,8 +74,19 @@ gh pr create
 
 ### 如果已经 push 到 `main` 了
 
-线上已经部署了。**不要 force push 改写历史**（那样线上会和仓库对不上）。
-正常做法是赶紧补一个 revert 或修正的 PR，让 `main` 重新回到可发布状态。
+现在这已经不可能（保护会拒绝）。万一通过其他途径发生了：线上已经部署了，
+**不要 force push 改写历史**（那样线上会和仓库对不上）。补一个 revert 或修正的
+PR，让 `main` 重新回到可发布状态。
+
+### 紧急情况：CI 挂了但必须发版
+
+保护是可以临时关掉的，但请**明确知道自己在做什么**，处理完立刻恢复：
+
+```bash
+# 临时关闭（之后必须恢复）
+gh api -X DELETE repos/linonward/growth/branches/main/protection
+# 恢复：重新执行 README「开发流程」里的那条 PUT 命令
+```
 
 ## 常用命令
 
