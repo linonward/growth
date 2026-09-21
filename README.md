@@ -10,6 +10,13 @@
 Phase 0 **不做**：登录注册、后端、AI、社交、排行榜、商城、金币、付费、老师端、家长后台。
 所有数据保存在 `localStorage`。
 
+## 相关文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | 架构约束与容易踩的坑（改代码前先看） |
+| [`docs/competitive-positioning.md`](docs/competitive-positioning.md) | 竞品对比、差异化、以及自评失真的验证设计 |
+
 ---
 
 ## 快速开始
