@@ -44,9 +44,20 @@ gh pr create --fill            # 模板会自动带上
 Day Gate、`data-testid`）变成提交前必须逐条确认的清单。这个项目的最大风险是
 范围蔓延，模板第一段就是用来挡它的。
 
-### 建议开启分支保护
+### 分支保护（已开启）
 
-让 CI 成为真正的门而不是提示（**注意：开启后不能再直接 `git push origin main`**）：
+CI 已经是真正的门而不是提示。`main` 现在受保护：直接 push 会被拒绝，
+必须走 PR 且三个检查全绿才能合并。
+
+实测直接 push 的返回：
+
+```text
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: - Changes must be made through a pull request.
+remote: - 3 of 3 required status checks are expected.
+```
+
+配置用下面这条命令应用（`enforce_admins=true`，管理员同样绕不过）：
 
 ```bash
 gh api -X PUT repos/linonward/growth/branches/main/protection \
@@ -61,6 +72,12 @@ gh api -X PUT repos/linonward/growth/branches/main/protection \
 
 `required_approving_review_count=0` 是刻意的：单人项目不需要为了凑一个 approval
 而制造虚假评审，但**必须**让检查通过才能合并。
+
+`enforce_admins=true` 也是刻意的 —— 仓库只有一个人，`false` 会让这条规则对唯一
+的使用者失效，等于没开。
+
+**紧急出口**（CI 挂了但必须发版）：`gh api -X DELETE repos/linonward/growth/branches/main/protection`
+临时关闭，处理完立刻用上面的命令恢复。
 
 ## 持续集成
 
