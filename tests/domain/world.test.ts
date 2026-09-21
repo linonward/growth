@@ -12,7 +12,32 @@ describe("getWorldState", () => {
       butterflyUnlocked: false,
       mysteryGateUnlocked: false,
       newAreaUnlocked: false,
+      starsEarned: 0,
     });
+  });
+
+  it("grows one star per day the student actually acted, capped at the day", () => {
+    // Behaviour, not calendar: three days with an action, seen on Day 5, is 3.
+    expect(getWorldState(5, 30, 10, 3).starsEarned).toBe(3);
+    // The cap keeps the garden from outgrowing the week if data is odd.
+    expect(getWorldState(2, 30, 10, 9).starsEarned).toBe(2);
+    expect(getWorldState(7, 30, 10, 99).starsEarned).toBe(7);
+    expect(getWorldState(5, 30, 10, 0).starsEarned).toBe(0);
+    expect(getWorldState(5, 30, 10, Number.NaN).starsEarned).toBe(0);
+  });
+
+  it("gives the world a star on every day a one-goal-a-day child acts", () => {
+    // The regression this exists for: energy arrives in steps of 10, so a child
+    // completing one goal a day crosses no pet or plant threshold on most days —
+    // the only new things were the Day 4 and Day 6 calendar reveals, which would
+    // have appeared even if they had done nothing.
+    let previous = getWorldState(1, 0, 0, 0);
+    for (let day = 1; day <= 7; day += 1) {
+      const world = getWorldState(day, (day - 1) * 10, 10, day);
+      expect(world.starsEarned).toBe(day);
+      expect(world.starsEarned).toBeGreaterThan(previous.starsEarned);
+      previous = world;
+    }
   });
 
   it("wakes the sky after the first goal and drops a rock after the third", () => {

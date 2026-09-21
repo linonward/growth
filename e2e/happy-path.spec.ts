@@ -233,6 +233,33 @@ test("the experimenter records an age band and it reaches the export", async ({
   expect(parsed.events.at(-1).props.age_band).toBe("6-7");
 });
 
+test("小星星园随每一次「今天做到了」长出来，并在界面上可见", async ({ page }) => {
+  // Regression: the garden is only as good as the plumbing from the store to
+  // the world state. It was first wired into the selectors but not into the hook
+  // the pages actually read, so it rendered nothing while every domain test
+  // passed. This walks the real screen.
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // Day 1: nothing earned yet, so no garden at all.
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await page.goto("/");
+  await expect(page.getByTestId("star-garden")).toHaveCount(0);
+
+  await completeGoal(page, DAILY_GOALS[0]);
+  await page.goto("/");
+  await expect(page.getByTestId("star-garden")).toHaveAttribute("data-stars", "1");
+
+  // Day 2: a second day with an action makes it two.
+  await gotoDay(page, 2);
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await page.goto("/");
+  await expect(page.getByTestId("star-garden")).toHaveAttribute("data-stars", "1");
+  await completeGoal(page, DAILY_GOALS[0]);
+  await page.goto("/");
+  await expect(page.getByTestId("star-garden")).toHaveAttribute("data-stars", "2");
+});
+
 test("reward_viewed records how much of the animation was actually watched", async ({
   page,
 }) => {

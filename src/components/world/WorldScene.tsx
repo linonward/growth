@@ -11,6 +11,7 @@ import {
   MysteryGate,
   NewArea,
   Rock,
+  StarGarden,
   Sun,
 } from "@/components/world/sprites/Scenery";
 import type { PetSpecies, PetState, PlantState, WorldState } from "@/domain/types";
@@ -111,6 +112,10 @@ export function WorldScene({
 
         {/* Scenery */}
         {worldState.rockUnlocked ? <Rock /> : null}
+        {/* Behaviour-driven: one star per day the student actually did something */}
+        {worldState.starsEarned > 0 ? (
+          <StarGarden earned={worldState.starsEarned} />
+        ) : null}
         {worldState.flowerUnlocked ? <Flowers /> : null}
 
         {/* Plant */}

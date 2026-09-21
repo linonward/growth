@@ -24,7 +24,7 @@ export const PLANT_EMOJI: Readonly<Record<PlantState, string>> = {
   bloom: "🌸",
 };
 
-export type RewardTarget = "pet" | "plant" | "world" | "energy";
+export type RewardTarget = "pet" | "plant" | "world" | "energy" | "stars";
 
 export interface RewardChange {
   target: RewardTarget;
@@ -44,11 +44,26 @@ export interface RewardChange {
  * otherwise fall back to a light "energy" reward so the sequence never repeats
  * the same beat twice in a row.
  */
+/**
+ * Work out what the world change should be for one completed goal.
+ *
+ * Spec section 5: every task earns a small reward, but only some tasks earn a
+ * big visual change. We prefer a real domain transition when one happens, and
+ * otherwise fall back to a light "energy" reward so the sequence never repeats
+ * the same beat twice in a row.
+ *
+ * `activeDaysBefore` is how many days already had an action before this goal.
+ * It drives the star garden, and it is the reason a reward is never
+ * calendar-only: on a day where no pet or plant threshold is crossed, the child
+ * still sees the world gain something because of what they just did (see
+ * `domain/world.ts`).
+ */
 export function describeRewardChange(
   day: number,
   beforeEnergy: number,
   petName = "小伙伴",
   todayEnergyAfter = ENERGY_PER_GOAL,
+  activeDaysBefore = 1,
 ): RewardChange {
   const afterEnergy = beforeEnergy + ENERGY_PER_GOAL;
   // The Day 7 finale is gated on acting today, so the "before" view must use
@@ -59,8 +74,18 @@ export function describeRewardChange(
   const petAfter = getPetState(day, afterEnergy, todayEnergyAfter);
   const plantBefore = getPlantState(day, beforeEnergy, todayEnergyBefore);
   const plantAfter = getPlantState(day, afterEnergy, todayEnergyAfter);
-  const worldBefore = getWorldState(day, beforeEnergy, todayEnergyBefore);
-  const worldAfter = getWorldState(day, afterEnergy, todayEnergyAfter);
+  const worldBefore = getWorldState(
+    day,
+    beforeEnergy,
+    todayEnergyBefore,
+    activeDaysBefore,
+  );
+  const worldAfter = getWorldState(
+    day,
+    afterEnergy,
+    todayEnergyAfter,
+    activeDaysBefore + 1,
+  );
 
   // 0. The gate opening leads, ahead of even the bloom.
   //
@@ -153,7 +178,24 @@ export function describeRewardChange(
     };
   }
 
-  // 4. Always-available small reward: light + energy.
+  // 4. A new star: the first action of a day that had none yet.
+  //
+  //    This is what stops a reward from being calendar-only. Energy arrives in
+  //    steps of 10, so a child completing one goal a day crosses a pet or plant
+  //    threshold only every second or third day; without this, on the days in
+  //    between the only new thing was a reveal they had not earned.
+  if (worldAfter.starsEarned > worldBefore.starsEarned) {
+    return {
+      target: "stars",
+      isMajor: false,
+      title: "小星星园亮起了一颗新的星星。",
+      detail: "这是你今天为世界做的第一件事。",
+      from: "⭐",
+      to: "🌟",
+    };
+  }
+
+  // 5. Always-available small reward: light + energy.
   return {
     target: "energy",
     isMajor: false,

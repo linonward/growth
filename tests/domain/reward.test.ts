@@ -13,10 +13,24 @@ describe("describeRewardChange", () => {
 
   it("uses the light/energy beat when nothing structural changes", () => {
     // Day 2 at 10 -> 20: pet is at its Day 2 floor, plant has no step at 20,
-    // and the rock is already out.
-    const change = describeRewardChange(2, 10);
+    // the rock is already out, and this is not the day's first action (so the
+    // star garden does not grow either).
+    const change = describeRewardChange(2, 10, "小伙伴", 20, 5);
     expect(change.target).toBe("energy");
     expect(change.isMajor).toBe(false);
+  });
+
+  it("grows the star garden on the day's first action", () => {
+    // The same state as above, but this goal is the first of a new day. Without
+    // this beat the child would see nothing change on days when no energy
+    // threshold is crossed — which, earning 10 at a time, is most days for a
+    // child completing one goal a day.
+    const change = describeRewardChange(2, 10, "小伙伴", 20, 5);
+    expect(change.target).toBe("energy");
+
+    const firstOfDay = describeRewardChange(2, 10, "小伙伴", 10, 0);
+    expect(firstOfDay.target).toBe("stars");
+    expect(firstOfDay.title).toContain("星星");
   });
 
   it("reports the pet hatching as a major moment", () => {
@@ -63,10 +77,47 @@ describe("describeRewardChange", () => {
   it("varies the small reward copy instead of repeating one line", () => {
     const lines = new Set<string>();
     for (let energy = 0; energy < 200; energy += 10) {
-      const change = describeRewardChange(2, energy);
+      // Past the day's first action, so this is the small beat rather than a star.
+      const change = describeRewardChange(2, energy, "小伙伴", 20, 5);
       if (change.target === "energy") lines.add(change.detail);
     }
     expect(lines.size).toBeGreaterThan(1);
+  });
+
+  it("never returns a calendar-only day for any completion rate", () => {
+    // The regression: energy arrives in steps of 10, so a child on 1 or 2 goals
+    // a day crossed no pet/plant threshold on several days, and the only new
+    // things on those days (flower, butterfly, gate) were calendar reveals they
+    // had not earned. Every completed goal must now produce something that is
+    // theirs: a pet/plant transition, the rock, the finale, or a new star.
+    //
+    // `world` is the ambiguous target — the flower is calendar-gated and the
+    // rock/finale are not — so the titles are what this asserts on.
+    for (const perDay of [1, 2, 3]) {
+      let totalEnergy = 0;
+      let activeDays = 0;
+      for (let day = 1; day <= 7; day += 1) {
+        for (let goal = 0; goal < perDay; goal += 1) {
+          const progress = describeRewardChange(
+            day,
+            totalEnergy,
+            "小光",
+            (goal + 1) * 10,
+            activeDays,
+          );
+          const behaviourDriven =
+            progress.target === "pet" ||
+            progress.target === "plant" ||
+            progress.target === "stars" ||
+            progress.title.includes("小石头") ||
+            progress.title.includes("门后的世界打开了");
+          const context = `每天 ${perDay} 个 · D${day} 第 ${goal + 1} 个目标 → ${progress.target}：${progress.title}`;
+          expect(behaviourDriven, context).toBe(true);
+          totalEnergy += 10;
+        }
+        activeDays += 1;
+      }
+    }
   });
 });
 

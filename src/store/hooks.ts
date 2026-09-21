@@ -128,9 +128,17 @@ export function useGrowth(): GrowthState {
   const currentDay = usePrototypeStore((s) => s.currentDay);
   const totalEnergy = useTotalEnergy();
   const todayEnergy = useTodayEnergy();
+  // Selected rather than derived from energy: the star garden counts days that
+  // had an action, and two different goal layouts can share a total energy.
+  const goalsByDay = usePrototypeStore((s) => s.goalsByDay);
+  const activeDays = useMemo(
+    () =>
+      Object.values(goalsByDay).filter((goals) => goals.some((g) => g.completed)).length,
+    [goalsByDay],
+  );
   return useMemo(
-    () => getGrowthState(currentDay, totalEnergy, todayEnergy),
-    [currentDay, totalEnergy, todayEnergy],
+    () => getGrowthState(currentDay, totalEnergy, todayEnergy, activeDays),
+    [currentDay, totalEnergy, todayEnergy, activeDays],
   );
 }
 

@@ -6,6 +6,7 @@ import { ANALYTICS_KEY, STORAGE_KEY } from "@/domain/constants";
 import {
   adoptAgeBand,
   adoptPersistedEvents,
+  selectActiveDays,
   selectGrowth,
   selectTotalEnergy,
   usePrototypeStore,
@@ -51,6 +52,47 @@ function pickGoals(day: number, count = 3) {
 }
 
 beforeEach(resetStore);
+
+/**
+ * The star garden is the world's behaviour-driven axis, and it is only as good
+ * as the plumbing from the store to `getWorldState`. Wiring it in the selectors
+ * but not in the read paths would leave it invisible with every unit test on
+ * `domain/world.ts` still green — which is exactly what happened first time.
+ */
+describe("star garden plumbing", () => {
+  it("starts empty and grows one star per active day", () => {
+    expect(selectActiveDays(usePrototypeStore.getState())).toBe(0);
+    expect(selectGrowth(usePrototypeStore.getState()).worldState.starsEarned).toBe(0);
+
+    const day1 = pickGoals(1, 1);
+    usePrototypeStore.getState().completeGoal(day1[0]);
+    usePrototypeStore.getState().debugSetDay(2);
+    const day2 = pickGoals(2, 1);
+    usePrototypeStore.getState().completeGoal(day2[0]);
+
+    const state = usePrototypeStore.getState();
+    expect(selectActiveDays(state)).toBe(2);
+    expect(selectGrowth(state).worldState.starsEarned).toBe(2);
+  });
+
+  it("does not grow again for a second goal on the same day", () => {
+    const ids = pickGoals(1, 2);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    expect(selectGrowth(usePrototypeStore.getState()).worldState.starsEarned).toBe(1);
+    usePrototypeStore.getState().completeGoal(ids[1]);
+    expect(selectGrowth(usePrototypeStore.getState()).worldState.starsEarned).toBe(1);
+  });
+
+  it("clears with a prototype reset", () => {
+    const ids = pickGoals(1, 1);
+    usePrototypeStore.getState().completeGoal(ids[0]);
+    expect(selectGrowth(usePrototypeStore.getState()).worldState.starsEarned).toBe(1);
+
+    usePrototypeStore.getState().resetPrototype();
+    expect(selectActiveDays(usePrototypeStore.getState())).toBe(0);
+    expect(selectGrowth(usePrototypeStore.getState()).worldState.starsEarned).toBe(0);
+  });
+});
 
 describe("goal completion", () => {
   it("awards exactly +10 energy for one completed goal", () => {
