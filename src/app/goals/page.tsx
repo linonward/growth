@@ -4,7 +4,8 @@ import { useState } from "react";
 
 import { CATEGORY_ICON, IconCheck, IconChevronRight } from "@/components/ui/icons";
 import { IconChip, ProgressBar } from "@/components/ui/primitives";
-import { GOAL_TEMPLATES, getGoalTemplate } from "@/data/goals";
+import { CATEGORY_TINT } from "@/components/ui/tints";
+import { GOAL_GROUPS, getGoalTemplate, templatesInGroup } from "@/data/goals";
 import {
   ENERGY_PER_GOAL,
   MAX_ENERGY_PER_DAY,
@@ -12,15 +13,6 @@ import {
 } from "@/domain/constants";
 import { useGrowth, useTodayEnergy, useTodayGoals } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
-
-/** Tint per goal category, so the five options read as five distinct things. */
-const CATEGORY_TINT = {
-  reading: "sky",
-  study: "growth",
-  exercise: "leaf",
-  interest: "blossom",
-  helping: "mystery",
-} as const;
 
 /**
  * Page 02 — 今日成长 (spec section 4).
@@ -89,8 +81,13 @@ export default function GoalsPage() {
                     <Icon size={21} />
                   </IconChip>
                   <span className="min-w-0 flex-1">
-                    <span className="t-headline block text-ink">{template.title}</span>
-                    <span className="t-caption mt-0.5 block text-[12px]">
+                    <span className="flex items-baseline gap-2">
+                      <span className="t-headline text-ink">{template.title}</span>
+                      <span className="shrink-0 rounded-full bg-sand/70 px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                        {template.amount}
+                      </span>
+                    </span>
+                    <span className="t-caption mt-1 block text-[12px]">
                       {goal.completed ? "已完成" : `完成后 +${ENERGY_PER_GOAL} 成长能量`}
                     </span>
                   </span>
@@ -210,49 +207,65 @@ export default function GoalsPage() {
         <p className="t-caption mt-1">选择最多 {MAX_GOALS_PER_DAY} 个成长目标</p>
       </header>
 
-      <ul className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-2">
-        {GOAL_TEMPLATES.map((template) => {
-          const selected = picked.includes(template.id);
-          const Icon = CATEGORY_ICON[template.category];
-          const tint = CATEGORY_TINT[template.category];
-          return (
-            <li key={template.id}>
-              <button
-                type="button"
-                data-testid={`goal-option-${template.id}`}
-                data-selected={selected}
-                aria-pressed={selected}
-                onClick={() => toggle(template.id)}
-                className={`flex w-full items-center gap-3.5 rounded-card px-4 py-4 text-left transition ${
-                  selected
-                    ? "border border-leaf-deep/45 bg-leaf-wash shadow-soft"
-                    : "card hover:-translate-y-px"
-                }`}
-              >
-                <IconChip tint={selected ? "leaf" : tint} size={44}>
-                  <Icon size={22} />
-                </IconChip>
-                <span className="min-w-0 flex-1">
-                  <span className="t-headline block text-ink">{template.title}</span>
-                  <span className="t-caption mt-0.5 block text-[12px]">
-                    {template.description}
-                  </span>
-                </span>
-                <span
-                  className={`chip h-7 w-7 border transition ${
-                    selected
-                      ? "border-leaf-deep bg-leaf-deep text-white"
-                      : "border-sand-deep/60 text-transparent"
-                  }`}
-                  aria-hidden
-                >
-                  <IconCheck size={15} />
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5 pb-2">
+        {GOAL_GROUPS.map((group) => (
+          <section key={group.id} className="mb-5 last:mb-0">
+            <div className="mb-2.5 flex items-baseline gap-2">
+              <h2 className="t-label">{group.label}</h2>
+              <span className="text-[11px] text-ink-faint">{group.hint}</span>
+            </div>
+            <ul className="space-y-3">
+              {templatesInGroup(group.id).map((template) => {
+                const selected = picked.includes(template.id);
+                const Icon = CATEGORY_ICON[template.category];
+                const tint = CATEGORY_TINT[template.category];
+                return (
+                  <li key={template.id}>
+                    <button
+                      type="button"
+                      data-testid={`goal-option-${template.id}`}
+                      data-selected={selected}
+                      aria-pressed={selected}
+                      onClick={() => toggle(template.id)}
+                      className={`flex w-full items-center gap-3.5 rounded-card px-4 py-3.5 text-left transition ${
+                        selected
+                          ? "border border-leaf-deep/45 bg-leaf-wash shadow-soft"
+                          : "card hover:-translate-y-px"
+                      }`}
+                    >
+                      <IconChip tint={selected ? "leaf" : tint} size={42}>
+                        <Icon size={21} />
+                      </IconChip>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline gap-2">
+                          <span className="t-headline text-ink">{template.title}</span>
+                          {/* The concrete measure — what makes the goal checkable. */}
+                          <span className="shrink-0 rounded-full bg-sand/70 px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                            {template.amount}
+                          </span>
+                        </span>
+                        <span className="t-caption mt-1 block text-[12px]">
+                          {template.description}
+                        </span>
+                      </span>
+                      <span
+                        className={`chip h-7 w-7 shrink-0 border transition ${
+                          selected
+                            ? "border-leaf-deep bg-leaf-deep text-white"
+                            : "border-sand-deep/60 text-transparent"
+                        }`}
+                        aria-hidden
+                      >
+                        <IconCheck size={15} />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
 
       <div className="shrink-0 border-t border-sand-deep/35 bg-cream/95 px-5 pt-4 pb-6 backdrop-blur">
         <div className="mb-3 flex items-center justify-center gap-2">

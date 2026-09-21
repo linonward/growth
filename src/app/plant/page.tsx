@@ -14,6 +14,7 @@ import {
   IconStageTree,
 } from "@/components/ui/icons";
 import { Card, IconChip, SectionLabel } from "@/components/ui/primitives";
+import { CATEGORY_TINT } from "@/components/ui/tints";
 import { PlantBadge } from "@/components/world/sprites/PlantSprite";
 import { CATEGORY_LABELS, GOAL_TEMPLATES } from "@/data/goals";
 import {
@@ -38,14 +39,6 @@ const STAGE_MARKS = [
   { at: 5, Icon: IconStageTree, label: "成树" },
   { at: 6, Icon: IconStageBloom, label: "开花" },
 ] as const;
-
-const CATEGORY_TINT = {
-  reading: "sky",
-  study: "growth",
-  exercise: "leaf",
-  interest: "blossom",
-  helping: "mystery",
-} as const;
 
 /**
  * Page 05 — 成长植物 (spec section 8).

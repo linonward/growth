@@ -89,7 +89,7 @@ test("完整 7 天流程：Day 1 → Day 7", async ({ page }) => {
 
   // 180 energy carried in from Days 1-6 plus the first Day-7 goal crosses the
   // finale threshold, so the three-beat sequence plays on this completion.
-  await page.getByTestId("goal-item-reading").click();
+  await page.getByTestId(`goal-item-${DAILY_GOALS[0]}`).click();
   await expect(page.getByTestId("goal-confirm-dialog")).toBeVisible();
   await page.getByTestId("goal-confirm-yes").click();
   await expect(page.getByTestId("reward-overlay")).toBeVisible();
@@ -183,8 +183,8 @@ test("the initiative question is asked once and is exported", async ({ page }) =
   await selectGoals(page, [...DAILY_GOALS]);
 
   // First completion of the day: the question appears at reward stage 4.
-  await completeGoal(page, "reading", { initiative: "self" });
-  await completeGoal(page, "study");
+  await completeGoal(page, DAILY_GOALS[0], { initiative: "self" });
+  await completeGoal(page, DAILY_GOALS[1]);
 
   await page.goto("/debug/export");
   await expect(page.getByTestId("export-page")).toBeVisible();

@@ -42,7 +42,7 @@ function resetStore() {
 
 /** Select the first `count` preset goals for a day. */
 function pickGoals(day: number, count = 3) {
-  const ids = ["reading", "study", "exercise", "interest", "helping"].slice(0, count);
+  const ids = ["math", "chinese", "english", "reading", "exercise"].slice(0, count);
   usePrototypeStore.getState().selectGoals(day, ids);
   return (usePrototypeStore.getState().goalsByDay[day] ?? []).map((g) => g.id);
 }
@@ -95,11 +95,11 @@ describe("goal completion", () => {
   it("locks the day's selection once something is completed", () => {
     const [first] = pickGoals(1);
     usePrototypeStore.getState().completeGoal(first);
-    usePrototypeStore.getState().selectGoals(1, ["helping"]);
+    usePrototypeStore.getState().selectGoals(1, ["helping"]); // a valid but unselected template
 
     const goals = usePrototypeStore.getState().goalsByDay[1];
     expect(goals).toHaveLength(3);
-    expect(goals.map((g) => g.templateId)).toContain("reading");
+    expect(goals.map((g) => g.templateId)).toContain("math");
   });
 
   it("opens the reward moment with the real world change", () => {

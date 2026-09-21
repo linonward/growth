@@ -135,6 +135,86 @@ export function IconHeart(props: IconProps) {
   );
 }
 
+/* --------------------------------------------- 学习（细分科目） */
+
+/** 数学 · 计算 — a calculator. */
+export function IconCalculator(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x={5} y={3} width={14} height={18} rx={3} />
+      <rect x={8} y={6} width={8} height={3.5} rx={1} />
+      <path d="M8.6 13h.01M12 13h.01M15.4 13h.01M8.6 17h.01M12 17h.01M15.4 17h.01" />
+    </Svg>
+  );
+}
+
+/** 语文 · 认字 — a character card with a stroke. */
+export function IconCharacter(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x={4} y={3.5} width={16} height={17} rx={3} />
+      <path d="M8 8.5h8M12 6.5v3" />
+      <path d="M8.6 15.4c1.2-1.6 2.6-1.6 3.4-.4.8 1.2 2.2 1.2 3.4-.4" />
+    </Svg>
+  );
+}
+
+/** 英语 — a speech bubble with an "A". */
+export function IconEnglish(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.4 3.4A.5.5 0 0 1 5 19V16a2 2 0 0 1-1-1.7Z" />
+      <path d="M9.4 13.2 12 7.2l2.6 6" />
+      <path d="M10.3 11.4h3.4" />
+    </Svg>
+  );
+}
+
+/* --------------------------------------------------- 学校行为 */
+
+/** 上课举手回答 — a raised hand. */
+export function IconHandUp(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9 12.5V5.6a1.3 1.3 0 0 1 2.6 0v5.6" />
+      <path d="M11.6 11V4.4a1.3 1.3 0 0 1 2.6 0v6.8" />
+      <path d="M14.2 11.2V6.2a1.3 1.3 0 0 1 2.6 0V14a6 6 0 0 1-6 6 5.6 5.6 0 0 1-4.3-2L4.4 15a1.3 1.3 0 0 1 1.8-1.8L9 15.4" />
+    </Svg>
+  );
+}
+
+/** 有不会的问老师 — a question inside a speech bubble. */
+export function IconAskTeacher(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.4 3.4A.5.5 0 0 1 5 19V16a2 2 0 0 1-1-1.7Z" />
+      <path d="M10.4 9.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.8.6-.8 1.1v.4" />
+      <path d="M12 14.9h.01" />
+    </Svg>
+  );
+}
+
+/** 想站起来时先举手 — a hand beside a seat. */
+export function IconStaySeated(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 20v-6.5A2.5 2.5 0 0 1 7.5 11h4A2.5 2.5 0 0 1 14 13.5V20" />
+      <path d="M5 16.6h9" />
+      <path d="M18.4 4.6v5.2M18.4 4.6c-1 0-1.8.8-1.8 1.8v2.2c0 1.2 1 2.2 2.2 2.2h.6" />
+    </Svg>
+  );
+}
+
+/** 老师讲课时看着老师 — an eye. */
+export function IconEye(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.6 12S6 6.4 12 6.4 21.4 12 21.4 12 18 17.6 12 17.6 2.6 12 2.6 12Z" />
+      <circle cx={12} cy={12} r={2.9} />
+    </Svg>
+  );
+}
+
 /* -------------------------------------------------------------- plant stages */
 
 /** Stage 1 — a sprouting seed. */
@@ -253,10 +333,19 @@ export function IconSun(props: IconProps) {
   );
 }
 
-/** Category → icon, used by the goals list and the plant record. */
+/** Category → icon, used by the goals list, the picker and the plant record. */
 export const CATEGORY_ICON = {
+  // 学习（家里）
+  math: IconCalculator,
+  chinese: IconCharacter,
+  english: IconEnglish,
   reading: IconBook,
-  study: IconPencil,
+  // 学校
+  participate: IconHandUp,
+  ask_teacher: IconAskTeacher,
+  stay_seated: IconStaySeated,
+  attend: IconEye,
+  // 生活
   exercise: IconRun,
   interest: IconPalette,
   helping: IconHeart,

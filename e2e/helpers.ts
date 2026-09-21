@@ -33,7 +33,7 @@ export async function selectGoals(page: Page, templateIds: string[]) {
 }
 
 /** The three goals used throughout the happy path. */
-export const DAILY_GOALS = ["reading", "study", "exercise"] as const;
+export const DAILY_GOALS = ["math", "chinese", "english"] as const;
 
 /**
  * Complete one goal through the whole confirmation + reward flow.

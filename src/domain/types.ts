@@ -7,16 +7,53 @@
 
 import type { RewardChange } from "./reward";
 
-export type GoalCategory = "reading" | "study" | "exercise" | "interest" | "helping";
+/**
+ * Where a goal sits in the day: at home studying, at school, or in daily life.
+ *
+ * The picker groups by this so a student can see they are choosing across the
+ * three parts of their day rather than piling everything into one.
+ */
+export type GoalGroup = "study" | "school" | "life";
+
+/**
+ * Goal categories.
+ *
+ * Learning is split by subject on purpose: "专注学习 20 分钟" gave a child
+ * nothing to actually do, and no way to tell whether they had done it. Every
+ * goal now names a subject, an action and an amount.
+ */
+export type GoalCategory =
+  // 学习（家里）
+  | "math"
+  | "chinese"
+  | "english"
+  | "reading"
+  // 学校
+  | "participate"
+  | "ask_teacher"
+  | "stay_seated"
+  | "attend"
+  // 生活
+  | "exercise"
+  | "interest"
+  | "helping";
 
 /** Phase 0 fixed goal definition. Free text entry is explicitly out of scope. */
 export interface GoalTemplate {
   id: string;
   category: GoalCategory;
+  group: GoalGroup;
   title: string;
+  /**
+   * The concrete measure, shown next to the title: "15 分钟", "6 个字", "1 次".
+   *
+   * This is what makes a goal checkable by the child alone — no adult has to
+   * judge whether it was done.
+   */
+  amount: string;
   description: string;
   energy: 10;
-  /** Presentation only. */
+  /** Presentation only, used by the reward moment. */
   emoji: string;
 }
 
