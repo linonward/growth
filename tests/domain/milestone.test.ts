@@ -106,18 +106,38 @@ describe("getNextMilestone", () => {
     expect(m.ctaHref).toBe("/history");
   });
 
-  it("still pushes for the finale on Day 7 before it lands", () => {
+  it("opens the finale on the first Day 7 action, whatever the total is", () => {
+    // A child on one goal a day arrives on Day 7 with 60 energy. One completed
+    // goal must be enough: the ending is earned by acting, not by the total.
+    // Before the fix this state had no ending at all — the door stayed shut and
+    // the home screen promised a journey that would never finish.
     const m = getNextMilestone(
       ctx({
         day: 7,
-        totalEnergy: 170,
-        todayEnergy: 20,
+        totalEnergy: 70,
+        todayEnergy: 10,
         selectedGoalCount: 3,
-        completedTodayCount: 2,
+        completedTodayCount: 1,
+      }),
+    );
+    expect(m.kind).toBe("continue");
+    expect(m.title).toBe("你的世界已经完整了");
+  });
+
+  it("still pushes for the finale on Day 7 before the first action", () => {
+    const m = getNextMilestone(
+      ctx({
+        day: 7,
+        totalEnergy: 70,
+        todayEnergy: 0,
+        selectedGoalCount: 3,
+        completedTodayCount: 0,
       }),
     );
     expect(m.kind).toBe("complete_goal");
-    expect(m.title).toBe("再完成 1 个目标");
+    expect(m.title).toBe("再完成 3 个目标");
+    // And it must not claim the journey is over while the door is still shut.
+    expect(m.detail).not.toContain("完整");
   });
 
   it("AC3: always answers 'what next?' for every reachable state", () => {

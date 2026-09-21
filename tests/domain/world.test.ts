@@ -37,9 +37,11 @@ describe("getWorldState", () => {
     expect(isMysteryGateOpen(6, MAX_TOTAL_ENERGY, 10)).toBe(false);
   });
 
-  it("unlocks the new area only on Day 7 with enough energy", () => {
-    expect(getWorldState(7, 0, 10).newAreaUnlocked).toBe(false);
-    expect(getWorldState(7, 170, 10).newAreaUnlocked).toBe(false);
+  it("unlocks the new area on Day 7 for anyone who acts that day", () => {
+    // Acting on the final day is the gate — not the size of the total. A child
+    // who completed one goal a day still gets the ending the week promised.
+    expect(getWorldState(7, 0, 10).newAreaUnlocked).toBe(true);
+    expect(getWorldState(7, 60, 10).newAreaUnlocked).toBe(true);
     expect(getWorldState(7, 180, 10).newAreaUnlocked).toBe(true);
     // Day 6 can never unlock it, even at maximum energy.
     expect(getWorldState(6, MAX_TOTAL_ENERGY, 10).newAreaUnlocked).toBe(false);
@@ -47,9 +49,23 @@ describe("getWorldState", () => {
 
   it("requires a Day 7 action before the new area opens", () => {
     // A perfect student arrives on Day 7 with exactly 180 energy: the finale
-    // must still be earned by completing one of that day's goals.
+    // must still be earned by completing one of that day's goals, so nothing
+    // opens at the day rollover.
     expect(getWorldState(7, 180, 0).newAreaUnlocked).toBe(false);
+    // Same rule for a student who did much less — the day alone is never enough.
+    expect(getWorldState(7, 60, 0).newAreaUnlocked).toBe(false);
     expect(getWorldState(7, 180, 10).newAreaUnlocked).toBe(true);
+  });
+
+  it("gives every completion rate the same ending (P5)", () => {
+    // The regression this exists for: a child on one goal a day used to reach
+    // Day 7 and get nothing — the gate promised on Day 6 stayed shut forever,
+    // while the home screen said the 7-day journey was complete.
+    const onePerDay = 60; // six days x one goal
+    const threePerDay = 180;
+    expect(getWorldState(7, onePerDay, 10).newAreaUnlocked).toBe(
+      getWorldState(7, threePerDay, 10).newAreaUnlocked,
+    );
   });
 
   it("clamps out-of-range days", () => {

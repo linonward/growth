@@ -10,6 +10,7 @@ import {
   resetApp,
   selectGoals,
   skipRewardToNext,
+  writePersistedState,
 } from "./helpers";
 
 /**
@@ -280,6 +281,73 @@ test("the debug panel is hidden without ?debug=1", async ({ page }) => {
 
   await page.goto("/?debug=1");
   await expect(page.getByTestId("debug-panel")).toBeVisible();
+});
+
+/**
+ * The ending promised on Day 6 must land for a child who did *less*, not only
+ * for one on three goals a day (P5: doing less is never punished).
+ *
+ * Regression: the gate opened only at 180 total energy — six perfect days —
+ * because the pet and plant ladders happen to top out there. A child completing
+ * one goal a day reached Day 7, completed a goal, and got nothing: the mystery
+ * gate stayed shut forever while the home screen said the 7-day journey was
+ * complete.
+ */
+test("低完成度也能在 Day 7 得到结局（每天 1 个目标）", async ({ page }) => {
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // The state a one-goal-a-day child arrives on Day 7 with: 10 energy earned on
+  // Day 1 and a 50 debug delta = 60 total, deliberately well under the 180 the
+  // old gate demanded. Written straight into the persisted snapshot so the test
+  // does not replay six days; the assertion is about the domain rule, not about
+  // how the state was reached.
+  await selectGoals(page, [DAILY_GOALS[0]]);
+  await completeGoal(page, DAILY_GOALS[0]);
+  await writePersistedState(page, { debugEnergyDelta: 50, dayOverride: 7 });
+  await page.goto("/?debug=1");
+  await expect(page.getByTestId("debug-day-value")).toHaveText("Day 7");
+  await page.goto("/");
+
+  // The door is still shut before today's action, and the pet is honestly only
+  // as grown as 60 energy allowed.
+  await expect(page.getByTestId("pet-sprite")).toHaveAttribute("data-pet-state", "baby");
+  await expect(page.getByTestId("new-area")).toHaveCount(0);
+
+  // One goal on the final day is all the ending requires. The reward copy for
+  // the gate opening is asserted in the domain tests; what this test owns is the
+  // end-to-end promise: the door a Day 6 child was told to come back for is
+  // actually open for a child who did less.
+  await selectGoals(page, [DAILY_GOALS[1]]);
+  await page.getByTestId(`goal-item-${DAILY_GOALS[1]}`).click();
+  await page.getByTestId("goal-confirm-yes").click();
+
+  await expect(page.getByTestId("reward-overlay")).toBeVisible();
+  // Let stage 3 play rather than skipping: this is the beat the whole week was
+  // built toward, and the child must actually see the door open.
+  await expect(page.getByTestId("reward-change-title")).toContainText(
+    "门后的世界打开了",
+    { timeout: 15000 },
+  );
+  await skipRewardToNext(page);
+  await page.getByTestId("reward-continue").click();
+
+  // The finale sequence plays, and its "继续我的成长" button records the same
+  // demand signal a perfect student produces — the low-completion child is not
+  // quietly excluded from the experiment's most important metric.
+  await expect(page.getByTestId("finale-overlay")).toBeVisible({ timeout: 15000 });
+  await page.getByTestId("finale-continue").click();
+  await expect(page.getByTestId("finale-overlay")).toBeHidden();
+
+  // The world really opened, and the pet is still a baby: the child did not grow
+  // it, and pretending otherwise would contradict the finale's own line
+  // (这一切，都来自你现实里的成长).
+  await page.goto("/");
+  await expect(page.getByTestId("new-area")).toBeVisible();
+  await expect(page.getByTestId("pet-sprite")).toHaveAttribute("data-pet-state", "baby");
+
+  const state = await readPersistedState(page);
+  expect(state.continueRequested).toBe(true);
 });
 
 /**

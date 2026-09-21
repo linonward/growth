@@ -59,8 +59,29 @@ export function describeRewardChange(
   const petAfter = getPetState(day, afterEnergy, todayEnergyAfter);
   const plantBefore = getPlantState(day, beforeEnergy, todayEnergyBefore);
   const plantAfter = getPlantState(day, afterEnergy, todayEnergyAfter);
+  const worldBefore = getWorldState(day, beforeEnergy, todayEnergyBefore);
+  const worldAfter = getWorldState(day, afterEnergy, todayEnergyAfter);
 
-  // 0. Day 7's bloom is Event 1 of the finale (spec section 11), so it leads
+  // 0. The gate opening leads, ahead of even the bloom.
+  //
+  //    Spec section 11 plays the whole closing beat "after completing the final
+  //    task" — one moment, not three. A perfect student crosses 180 total
+  //    energy on that single goal, so without this branch the sequence would
+  //    run bloom → evolved and the door would open off-screen; and a student who
+  //    did less would fall through to a minor plant/scenery line and never be
+  //    told the thing the whole week promised had just happened.
+  if (!worldBefore.newAreaUnlocked && worldAfter.newAreaUnlocked) {
+    return {
+      target: "world",
+      isMajor: true,
+      title: "门后的世界打开了！",
+      detail: "7 天前，这里只有一颗蛋和一棵小芽。",
+      from: "🚪",
+      to: "🏞️",
+    };
+  }
+
+  // 1. Day 7's bloom is Event 1 of the finale (spec section 11), so it leads
   //    even though the pet also evolves on the very same goal.
   if (plantBefore !== "bloom" && plantAfter === "bloom") {
     return {
@@ -109,9 +130,8 @@ export function describeRewardChange(
     };
   }
 
-  // 3. Scenery transition.
-  const worldBefore = getWorldState(day, beforeEnergy, todayEnergyBefore);
-  const worldAfter = getWorldState(day, afterEnergy, todayEnergyAfter);
+  // 3. Scenery transition. (The new area is handled at the top: it is the
+  //    finale and must lead, not sit behind two minor scenery beats.)
   if (!worldBefore.rockUnlocked && worldAfter.rockUnlocked) {
     return {
       target: "world",
