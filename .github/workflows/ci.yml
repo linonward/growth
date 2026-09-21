@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch makes the previous run obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Format, types, lint, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must run before setup-node: `cache: pnpm` shells out to pnpm to find
+      # the store path. The version comes from package.json's packageManager.
+      - uses: pnpm/action-setup@v4
+
+      # Node 24 matches the version this project is developed and verified on.
+      # `scripts/analyze-export.ts` relies on Node's native TypeScript support.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `check:ci` is the read-only variant of `check`; it fails instead of
+      # rewriting files, so a formatting drift cannot pass silently.
+      - run: pnpm check:ci
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      # No NEXT_PUBLIC_POSTHOG_KEY is set here on purpose. Analytics must be a
+      # no-op without a key, and the app must still build and run — this job is
+      # where that rule gets enforced.
+      - run: pnpm build
+
+  e2e:
+    name: End-to-end (mobile chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Playwright's webServer starts `next dev` itself in CI
+      # (reuseExistingServer is disabled when CI is set).
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm e2e
+
+      # Traces and screenshots, but only when something failed.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
