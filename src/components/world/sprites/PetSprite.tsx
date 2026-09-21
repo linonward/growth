@@ -1,6 +1,6 @@
 "use client";
 
-import { PALETTE as C } from "@/components/world/palette";
+import { useWorldColors } from "@/components/world/ThemeProvider";
 import type { PetSpecies, PetState } from "@/domain/types";
 
 interface PetSpriteProps {
@@ -20,6 +20,7 @@ interface PetSpriteProps {
  * are obviously different (acceptance criterion AC4).
  */
 export function PetSprite({ state, x, y, name }: PetSpriteProps) {
+  const C = useWorldColors();
   return (
     <g transform={`translate(${x} ${y})`} data-testid="pet-sprite" data-pet-state={state}>
       {state === "egg" ? <Egg /> : null}
@@ -43,6 +44,7 @@ export function PetSprite({ state, x, y, name }: PetSpriteProps) {
 }
 
 function Egg() {
+  const C = useWorldColors();
   return (
     <g>
       <ellipse cx={0} cy={-4} rx={26} ry={10} fill={C.shadow} opacity={0.07} />
@@ -61,6 +63,7 @@ function Egg() {
 }
 
 function CrackedEgg() {
+  const C = useWorldColors();
   return (
     <g>
       <ellipse cx={0} cy={-4} rx={26} ry={10} fill={C.shadow} opacity={0.07} />
@@ -97,6 +100,7 @@ function CrackedEgg() {
 
 /** One fox drawing, scaled per life stage. */
 function Fox({ scale, glow }: { scale: number; glow: boolean }) {
+  const C = useWorldColors();
   return (
     <g transform={`scale(${scale})`}>
       {glow ? (
@@ -159,6 +163,7 @@ function Fox({ scale, glow }: { scale: number; glow: boolean }) {
 }
 
 function Sparkle({ x, y }: { x: number; y: number }) {
+  const C = useWorldColors();
   return (
     <path
       d={`M${x} ${y - 5} L${x + 1.6} ${y - 1.6} L${x + 5} ${y} L${x + 1.6} ${y + 1.6} L${x} ${y + 5} L${x - 1.6} ${y + 1.6} L${x - 5} ${y} L${x - 1.6} ${y - 1.6} Z`}

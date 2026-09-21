@@ -7,8 +7,11 @@ import { trackWorldViewed } from "@/analytics/track";
 import { EnergyPanel } from "@/components/growth/EnergyPanel";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
 import { IconChevronRight, IconSprout, IconSun } from "@/components/ui/icons";
+import { ThemePanel } from "@/components/world/ThemePanel";
+import { ThemeProvider } from "@/components/world/ThemeProvider";
 import { SCENE, WorldScene } from "@/components/world/WorldScene";
 import { getCloudCount } from "@/domain/world";
+import { resolveWorldTheme } from "@/domain/world-theme";
 import { useGrowth, useMilestone, useTodayEnergy } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
@@ -33,6 +36,8 @@ export default function WorldPage() {
   const worldName = usePrototypeStore((s) => s.profile.worldName);
   const petName = usePrototypeStore((s) => s.profile.petName);
   const petSpecies = usePrototypeStore((s) => s.profile.petSpecies);
+  const storedTheme = usePrototypeStore((s) => s.profile.worldTheme);
+  const worldTheme = resolveWorldTheme(storedTheme);
   const pendingInitiativeDay = usePrototypeStore((s) => s.pendingInitiativeDay);
 
   const day = growth.currentDay;
@@ -65,16 +70,22 @@ export default function WorldPage() {
           </span>
         </div>
 
-        <WorldScene
-          day={day}
-          petState={growth.petState}
-          plantState={growth.plantState}
-          worldState={growth.worldState}
-          petSpecies={petSpecies}
-          petName={petName}
-          cloudCount={getCloudCount(day)}
-          className="block w-full"
-        />
+        {/*
+          The theme is a property of this child's world, so it is read here and
+          handed to the scene rather than resolved inside it.
+        */}
+        <ThemeProvider theme={worldTheme}>
+          <WorldScene
+            day={day}
+            petState={growth.petState}
+            plantState={growth.plantState}
+            worldState={growth.worldState}
+            petSpecies={petSpecies}
+            petName={petName}
+            cloudCount={getCloudCount(day)}
+            className="block w-full"
+          />
+        </ThemeProvider>
 
         {/* Soft scrim so the scene melts into the page instead of ending abruptly. */}
         <div
@@ -123,6 +134,10 @@ export default function WorldPage() {
             <InitiativePrompt day={day} />
           </div>
         ) : null}
+
+        <div className="mt-5">
+          <ThemePanel />
+        </div>
 
         <div className="mt-5 flex gap-2.5 px-5">
           <button

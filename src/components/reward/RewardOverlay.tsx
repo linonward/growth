@@ -8,9 +8,11 @@ import { trackRewardViewed } from "@/analytics/track";
 import { InitiativePrompt } from "@/components/onboarding/InitiativePrompt";
 import { IconSparkle, IconWorldDrop } from "@/components/ui/icons";
 import { EmojiChip, ProgressBar } from "@/components/ui/primitives";
+import { ThemeUnlockNote } from "@/components/world/ThemePanel";
 import { getGoalTemplate } from "@/data/goals";
 import { MAX_ENERGY_PER_DAY } from "@/domain/constants";
 import type { RewardMoment, RewardStage } from "@/domain/types";
+import type { WorldThemeId } from "@/domain/world-theme";
 import { useMilestone, useTodayEnergy } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
@@ -261,6 +263,7 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
             title={milestone.title}
             detail={milestone.detail}
             day={reward.day}
+            unlockedThemeId={reward.unlockedThemeId}
           />
         ) : null}
       </div>
@@ -429,11 +432,13 @@ function StageNext({
   title,
   detail,
   day,
+  unlockedThemeId,
 }: {
   todayEnergy: number;
   title: string;
   detail: string;
   day: number;
+  unlockedThemeId?: WorldThemeId;
 }) {
   return (
     <motion.div
@@ -460,6 +465,8 @@ function StageNext({
         </p>
         <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">{detail}</p>
       </div>
+
+      {unlockedThemeId ? <ThemeUnlockNote id={unlockedThemeId} /> : null}
 
       <p className="mt-4 text-[12px] text-ink-faint">
         Day {day} · 一起成长的第 {day} 天

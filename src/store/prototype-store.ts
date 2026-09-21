@@ -52,6 +52,14 @@ import type {
   RewardMoment,
   UserProfile,
 } from "@/domain/types";
+import {
+  DEFAULT_THEME,
+  isThemeUnlocked,
+  resolveWorldTheme,
+  unlockedThemeCount,
+  WORLD_THEME_IDS,
+  type WorldThemeId,
+} from "@/domain/world-theme";
 
 export interface PrototypeStoreState {
   // ---- persisted ----
@@ -95,6 +103,15 @@ export interface PrototypeStoreState {
    * participant id does: it describes who is taking part, not their progress.
    */
   setAgeBand: (band: AgeBand | null) => void;
+  /**
+   * Wear a different look, if this world has unlocked it.
+   *
+   * Silently ignored when it has not: the picker never offers a locked theme as
+   * tappable, and a race (two taps, a stale render) must not hand out a free
+   * unlock. Returns nothing — the caller reads the profile back if it needs to
+   * know.
+   */
+  setTheme: (id: WorldThemeId) => void;
   renamePet: (name: string) => void;
   renameWorld: (name: string) => void;
   selectGoals: (day: number, templateIds: string[]) => void;
@@ -133,6 +150,8 @@ function defaultProfile(now = new Date()): UserProfile {
     // a guessed age band is worse than a missing one, because it silently
     // creates a cohort that the study did not recruit.
     ageBand: null,
+    // Every world starts on the default look; unlocks are earned after that.
+    worldTheme: DEFAULT_THEME,
   };
 }
 
@@ -216,6 +235,23 @@ export function selectActiveDays(state: PrototypeStoreState): number {
   return days;
 }
 
+/**
+ * Stars earned so far — which is exactly the number of active days.
+ *
+ * Named separately from `selectActiveDays` because it is read by two different
+ * concerns: the star garden (a record of showing up) and the theme ladder (a
+ * currency). Keeping one selector means they can never disagree about how many
+ * stars exist.
+ */
+export function selectStarsEarned(state: PrototypeStoreState): number {
+  return selectActiveDays(state);
+}
+
+/** The look this world is wearing, defaulted for pre-theme saves. */
+export function selectWorldTheme(state: PrototypeStoreState): WorldThemeId {
+  return resolveWorldTheme(state.profile.worldTheme);
+}
+
 export function selectGrowth(state: PrototypeStoreState) {
   return getGrowthState(
     state.currentDay,
@@ -296,6 +332,17 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
         set((state) => ({ profile: { ...state.profile, ageBand: band } }));
       },
 
+      setTheme: (id) => {
+        const state = get();
+        // The unlock check lives here rather than in the picker so there is one
+        // place that can hand out a theme, and it cannot be bypassed by a stale
+        // prop or a second tap.
+        if (!isThemeUnlocked(id, selectStarsEarned(state))) return;
+        set((current) => ({
+          profile: { ...current.profile, worldTheme: id },
+        }));
+      },
+
       renamePet: (name) => {
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -367,6 +414,16 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           todayEnergyAfter,
         );
 
+        // The star for today has not been awarded yet (`selectActiveDays` reads
+        // the pre-completion snapshot), so "after" is one more — but only when
+        // today had no action at all before this goal.
+        const starsBefore = selectStarsEarned(state);
+        const starsAfter = starsBefore + (completedBefore === 0 ? 1 : 0);
+        const unlocksBefore = unlockedThemeCount(starsBefore);
+        const unlocksAfter = unlockedThemeCount(starsAfter);
+        const unlockedThemeId =
+          unlocksAfter > unlocksBefore ? WORLD_THEME_IDS[unlocksAfter - 1] : undefined;
+
         const reward: RewardMoment = {
           goalId,
           templateId: goal.templateId,
@@ -376,6 +433,7 @@ export const usePrototypeStore = create<PrototypeStoreState>()(
           isFinale: milestone?.id === "day7_finale",
           totalEnergyAfter: afterEnergy,
           todayEnergyAfter,
+          unlockedThemeId,
         };
 
         // Spec section 15: ask the initiative question after the day's first

@@ -1,10 +1,11 @@
 "use client";
 
-import { PALETTE as C } from "@/components/world/palette";
+import { useWorldColors } from "@/components/world/ThemeProvider";
 import type { WorldState } from "@/domain/types";
 
 /** Sun in the top-right corner. Brightens once the world has woken up. */
 export function Sun({ glow }: { glow: boolean }) {
+  const C = useWorldColors();
   return (
     <g transform="translate(322 58)">
       <circle r={44} fill={C.sun} opacity={glow ? 0.35 : 0.16} />
@@ -23,6 +24,7 @@ export function Sun({ glow }: { glow: boolean }) {
 
 /** Clouds ramp up across the week so Day 1 never looks like Day 7. */
 export function Clouds({ count, y = 0 }: { count: number; y?: number }) {
+  const C = useWorldColors();
   const spots: Array<[number, number, number]> = [
     [66, 74, 1],
     [252, 46, 0.78],
@@ -59,6 +61,7 @@ export function Clouds({ count, y = 0 }: { count: number; y?: number }) {
  * on Day 7.
  */
 export function Ground({ lush }: { lush: boolean }) {
+  const C = useWorldColors();
   return (
     <g>
       {/* distant hills — gives the horizon depth */}
@@ -99,6 +102,7 @@ export function Ground({ lush }: { lush: boolean }) {
 }
 
 export function Rock() {
+  const C = useWorldColors();
   return (
     <g transform="translate(60 268)">
       <ellipse cx={0} cy={4} rx={26} ry={6} fill={C.shadow} opacity={0.08} />
@@ -111,6 +115,7 @@ export function Rock() {
 
 /** The first flower, Day 4's headline change. */
 export function Flowers() {
+  const C = useWorldColors();
   return (
     <g transform="translate(300 272)" data-testid="flowers">
       <g className="anim-sway">
@@ -152,6 +157,7 @@ function Bloom({
   petalRy: number;
   core: number;
 }) {
+  const C = useWorldColors();
   return (
     <g transform={`translate(0 ${y})`}>
       {[0, 72, 144, 216, 288].map((deg) => (
@@ -172,6 +178,7 @@ function Bloom({
 
 /** A butterfly that visits from Day 4 onwards. */
 export function Butterfly() {
+  const C = useWorldColors();
   return (
     <g transform="translate(344 158)" data-testid="butterfly">
       <g className="anim-float" style={{ animationDuration: "4s" }}>
@@ -204,6 +211,7 @@ export function Butterfly() {
  * stays shut. It only becomes the rainbow arch on Day 7.
  */
 export function MysteryGate({ open }: { open: boolean }) {
+  const C = useWorldColors();
   if (open) return <RainbowGate />;
   return (
     <g transform="translate(348 250)" data-testid="mystery-gate">
@@ -253,6 +261,7 @@ export function MysteryGate({ open }: { open: boolean }) {
 
 /** Day 7: the gate becomes an arch and the world opens up behind it. */
 function RainbowGate() {
+  const C = useWorldColors();
   const bands = C.rainbow;
   return (
     <g transform="translate(348 250)" data-testid="rainbow-gate">
@@ -279,6 +288,7 @@ function RainbowGate() {
  * "the map just got bigger" beat land.
  */
 export function NewArea() {
+  const C = useWorldColors();
   return (
     <g data-testid="new-area">
       {/* distant hills */}
@@ -337,6 +347,7 @@ function FlowerAt({
   scale: number;
   color: string;
 }) {
+  const C = useWorldColors();
   return (
     <g transform={`translate(${x} ${y}) scale(${scale})`}>
       <path d="M0 0 L0 -18" stroke={C.stemDeep} strokeWidth={2.4} strokeLinecap="round" />
@@ -360,6 +371,7 @@ function FlowerAt({
 
 /** The egg-crack burst played during the Day 3 reward. */
 export function Burst() {
+  const C = useWorldColors();
   return (
     <g data-testid="egg-burst">
       {Array.from({ length: 8 }).map((_, i) => {
@@ -398,6 +410,7 @@ export function Burst() {
  * slot still empty, which is the "there is more" hint (P3) without a number.
  */
 export function StarGarden({ earned }: { earned: number }) {
+  const C = useWorldColors();
   // One slot per day of the experiment, so the garden is a record of the whole
   // week rather than an open-ended counter. The slots are always drawn, and the
   // empty ones keep a faint dashed outline: that is the "there is more coming"

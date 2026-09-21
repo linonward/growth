@@ -1,6 +1,6 @@
 "use client";
 
-import { PALETTE as C } from "@/components/world/palette";
+import { useWorldColors } from "@/components/world/ThemeProvider";
 import type { PlantState } from "@/domain/types";
 
 interface PlantSpriteProps {
@@ -28,6 +28,7 @@ const STAGE_INDEX: Record<PlantState, number> = {
  * order is explicit so the trunk always sits behind the foliage.
  */
 export function PlantSprite({ state, x, y }: PlantSpriteProps) {
+  const C = useWorldColors();
   const stage = STAGE_INDEX[state];
   return (
     <g
@@ -53,6 +54,7 @@ export function PlantSprite({ state, x, y }: PlantSpriteProps) {
 }
 
 function Seed() {
+  const C = useWorldColors();
   return (
     <g>
       <ellipse cx={0} cy={-5} rx={7} ry={4.5} fill={C.soil} />
@@ -63,6 +65,7 @@ function Seed() {
 
 /** Drawn before the foliage so it reads as a trunk behind the leaves. */
 function Trunk() {
+  const C = useWorldColors();
   return (
     <path
       d="M-6 -6 C -4 -30 -5 -46 -6 -62 L6 -62 C 5 -46 4 -30 6 -6 Z"
@@ -74,6 +77,7 @@ function Trunk() {
 }
 
 function Sprout() {
+  const C = useWorldColors();
   return (
     <g className="anim-sway">
       <path d="M0 -6 L0 -15" stroke={C.stemDeep} strokeWidth={2} strokeLinecap="round" />
@@ -84,6 +88,7 @@ function Sprout() {
 }
 
 function Leaves() {
+  const C = useWorldColors();
   return (
     <g className="anim-sway">
       <path
@@ -103,6 +108,7 @@ function Leaves() {
 }
 
 function Bush() {
+  const C = useWorldColors();
   return (
     <g className="anim-sway">
       <path
@@ -119,6 +125,7 @@ function Bush() {
 }
 
 function Bud() {
+  const C = useWorldColors();
   return (
     <g className="anim-sway">
       <path
@@ -135,6 +142,7 @@ function Bud() {
 
 /** Tree-stage foliage, drawn over the trunk. */
 function Canopy() {
+  const C = useWorldColors();
   return (
     <g className="anim-sway">
       <circle cx={-26} cy={-74} r={21} fill={C.stem} />
@@ -147,6 +155,7 @@ function Canopy() {
 }
 
 function Blossoms() {
+  const C = useWorldColors();
   const spots: Array<[number, number]> = [
     [-24, -84],
     [20, -88],
