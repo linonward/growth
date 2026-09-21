@@ -36,6 +36,32 @@ export interface ExperimentSummary {
   rewardViewedCount: number;
 }
 
+/**
+ * What happened after the 7-day story ended.
+ *
+ * This is the only signal that tests the actual bet. D1–D7 retention during a
+ * 7-day serial measures whether the story held — the answer is largely "of
+ * course it did". The question Phase 0 exists to answer is whether a child
+ * comes back **after there is nothing new to unlock**, which is why D8 is the
+ * primary acceptance point (see the research evaluation §6.1).
+ *
+ * Derived from `session_started` timestamps relative to `profile.startedAt`,
+ * because `experiment_day` is clamped to 1–7 by design: there is no Day 8 in the
+ * game, so the app cannot label it and must not pretend to. Nothing new is
+ * collected — the events were always there, the analysis just stopped looking
+ * at day 7.
+ */
+export interface PostWeekReport {
+  /** Distinct days at offset >= 8 on which the app was opened. */
+  daysActive: number;
+  /** The offset of the first such day, e.g. 8 for the day right after the story. */
+  firstDayActive: number | null;
+  /** The furthest offset seen. Useful for "did they ever come back at all". */
+  lastDayActive: number | null;
+  /** Offset -> opened. Sparse: only days that happened. */
+  byDay: Record<string, number>;
+}
+
 export interface ExperimentExport {
   schemaVersion: 1;
   exportedAt: string;
@@ -54,6 +80,7 @@ export interface ExperimentExport {
   profile: UserProfile;
   summary: ExperimentSummary;
   days: DayReport[];
+  postWeek: PostWeekReport;
   events: AnalyticsEvent[];
 }
 
@@ -70,6 +97,43 @@ export interface ExportInput {
 
 function templatesFor(goals: readonly DailyGoal[]): string[] {
   return goals.map((g) => g.templateId);
+}
+
+/** How many whole 24-hour periods after `from` an instant sits. */
+function dayOffset(at: string, from: string): number | null {
+  const t = new Date(at).getTime();
+  const start = new Date(from).getTime();
+  if (Number.isNaN(t) || Number.isNaN(start)) return null;
+  return Math.floor((t - start) / 86_400_000) + 1;
+}
+
+/**
+ * Openings that happened after the 7-day window.
+ *
+ * Offsets are whole 24-hour periods from `profile.startedAt`, which is the same
+ * arithmetic `calendarDayFromStart` uses for the in-game day — so "offset 8" means
+ * the same thing here as "Day 8" would if the game had one.
+ */
+export function buildPostWeekReport(
+  events: readonly AnalyticsEvent[],
+  startedAt: string,
+): PostWeekReport {
+  const byDay: Record<string, number> = {};
+  for (const event of events) {
+    if (event.name !== "session_started") continue;
+    const offset = dayOffset(event.at, startedAt);
+    if (offset === null || offset <= TOTAL_DAYS) continue;
+    byDay[String(offset)] = (byDay[String(offset)] ?? 0) + 1;
+  }
+  const days = Object.keys(byDay)
+    .map(Number)
+    .sort((a, b) => a - b);
+  return {
+    daysActive: days.length,
+    firstDayActive: days[0] ?? null,
+    lastDayActive: days[days.length - 1] ?? null,
+    byDay,
+  };
 }
 
 /**
@@ -140,6 +204,7 @@ export function buildExportPayload(input: ExportInput): ExperimentExport {
       rewardViewedCount: countEvents(events, "reward_viewed"),
     },
     days,
+    postWeek: buildPostWeekReport(events, profile.startedAt),
     events,
   };
 }

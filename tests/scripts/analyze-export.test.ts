@@ -6,6 +6,7 @@ import {
   type RawExport,
   renderAgeCohorts,
   renderParticipant,
+  renderPostWeekVerdict,
   renderSummary,
   resolveAgeBand,
 } from "../../scripts/analyze-export.ts";
@@ -442,5 +443,145 @@ describe("renderParticipant — the age band is visible per participant", () => 
     // the cohort table's "unsegmented" row looks like a rounding error.
     const out = renderParticipant(analyse(honest()));
     expect(out).toContain("年龄未记录");
+  });
+});
+
+/* ------------------------------------------------------- post-week (D8+) */
+
+/**
+ * D8 is the primary acceptance point: a 7-day serial holding together mostly
+ * measures the serial. The analyser has to be able to say "we cannot answer
+ * that yet" rather than quietly reporting a zero.
+ */
+describe("post-week return — the primary acceptance point", () => {
+  const withPostWeek = (raw: RawExport, postWeek: RawExport["postWeek"]): RawExport => ({
+    ...raw,
+    postWeek,
+  });
+
+  it("does not count a week of sessions as a return", () => {
+    // The fixture has no `postWeek`, so it stands in for a real export whose
+    // report says "no openings after the week".
+    const report = analyse(withPostWeek(honest(), { daysActive: 0 }));
+    expect(report.returnedAfterStory).toBe(false);
+    expect(report.lastDayActive).toBeNull();
+  });
+
+  it("counts an opening on the day after the story", () => {
+    const report = analyse(
+      withPostWeek(honest(), { daysActive: 1, firstDayActive: 8, lastDayActive: 8 }),
+    );
+    expect(report.returnedAfterStory).toBe(true);
+    expect(report.lastDayActive).toBe(8);
+  });
+
+  it("reports null for an export that predates the field", () => {
+    // Absent must never be read as "did not return" — that would turn missing
+    // data into evidence against the hypothesis.
+    expect(analyse(honest()).returnedAfterStory).toBeNull();
+  });
+
+  it("tells the analyst when the exports cannot answer it at all", () => {
+    // No `postWeek` anywhere: old exports, or every export taken before Day 8
+    // would still carry one (with zero days), so this is really "old file".
+    const out = renderPostWeekVerdict(cohortByAge([analyse(honest())]));
+    expect(out).toContain("D8+ 回访无法判读");
+  });
+
+  it("flags a cohort that did not come back", () => {
+    const reports = [
+      analyse(withPostWeek(honest(), { daysActive: 0 })),
+      analyse(withPostWeek(honest(), { daysActive: 0 })),
+    ];
+    const out = renderPostWeekVerdict(cohortByAge(reports));
+    expect(out).toContain("0/2 = 0%");
+    expect(out).toContain("没有撑住动机");
+  });
+
+  it("confirms a cohort that did", () => {
+    const reports = [
+      analyse(withPostWeek(honest(), { daysActive: 1, lastDayActive: 9 })),
+      analyse(withPostWeek(honest(), { daysActive: 2, lastDayActive: 10 })),
+    ];
+    const out = renderPostWeekVerdict(cohortByAge(reports));
+    expect(out).toContain("2/2 = 100%");
+    expect(out).toContain("核心赌注成立的第一个证据");
+  });
+
+  it("will not draw a conclusion from one participant", () => {
+    const out = renderPostWeekVerdict(
+      cohortByAge([analyse(withPostWeek(honest(), { daysActive: 1 }))]),
+    );
+    expect(out).toContain("样本不足");
+  });
+
+  it("only judges participants whose export can answer the question", () => {
+    const known = analyse(withPostWeek(honest(), { daysActive: 0 }));
+    const unknown = analyse(honest()); // no postWeek
+    const out = renderPostWeekVerdict(cohortByAge([known, unknown]));
+    // One of the two can be judged; the old export must not become a "no".
+    expect(out).toContain("0/1 = 0%");
+  });
+
+  it("carries the D8 column only when the exports can answer it", () => {
+    const withoutData = renderAgeCohorts(
+      cohortByAge([analyse(honest()), analyse(honest())]),
+    );
+    expect(withoutData).toContain("D8+ 回访无法判读");
+    // The column itself reads as unknown, not as zero.
+    expect(withoutData).toContain("| — |");
+
+    const withData = renderAgeCohorts(
+      cohortByAge([
+        analyse(withPostWeek(honest(), { daysActive: 1 })),
+        analyse(withPostWeek(honest(), { daysActive: 0 })),
+      ]),
+    );
+    expect(withData).toContain("1/2 (50%)");
+  });
+});
+
+describe("renderPostWeekVerdict — the acceptance point is not a pooled number", () => {
+  const withPostWeek = (raw: RawExport, postWeek: RawExport["postWeek"]): RawExport => ({
+    ...raw,
+    postWeek,
+  });
+
+  it("warns when a pass is carried by one age group", () => {
+    // The trap this exists for: pooled 50% looks like a pass, while the target
+    // age band came back exactly zero times.
+    const reports = [
+      { ...withBand(honest(), "6-7", 1, "a"), postWeek: { daysActive: 0 } },
+      { ...withBand(honest(), "6-7", 2, "b"), postWeek: { daysActive: 0 } },
+      {
+        ...withBand(honest(), "11-12", 4, "c"),
+        postWeek: { daysActive: 1, lastDayActive: 8 },
+      },
+      {
+        ...withBand(honest(), "11-12", 4, "d"),
+        postWeek: { daysActive: 1, lastDayActive: 9 },
+      },
+    ].map((r) => analyse(r as RawExport));
+
+    const out = renderPostWeekVerdict(cohortByAge(reports));
+    expect(out).toContain("2/4 = 50%");
+    expect(out).toContain("一次都没回来");
+    expect(out).toContain("一年级 0/2");
+  });
+
+  it("stays quiet when every judged cohort came back", () => {
+    const reports = [
+      {
+        ...withBand(honest(), "6-7", 4, "a"),
+        postWeek: { daysActive: 1, lastDayActive: 8 },
+      },
+      {
+        ...withBand(honest(), "6-7", 4, "b"),
+        postWeek: { daysActive: 2, lastDayActive: 9 },
+      },
+    ].map((r) => analyse(r as RawExport));
+    const out = renderPostWeekVerdict(cohortByAge(reports));
+    expect(out).toContain("100%");
+    expect(out).not.toContain("混龄数字");
   });
 });

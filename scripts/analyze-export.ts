@@ -52,6 +52,15 @@ export interface RawExport {
    */
   profile?: { ageBand?: string | null };
   summary?: Record<string, unknown>;
+  /**
+   * Activity after the 7-day story ended. Optional: exports written before this
+   * field existed still load, they simply cannot answer the D8 question.
+   */
+  postWeek?: {
+    daysActive?: number;
+    firstDayActive?: number | null;
+    lastDayActive?: number | null;
+  };
   events: RawEvent[];
 }
 
@@ -91,6 +100,15 @@ const MIN_COHORT_SIZE = 2;
  * Same threshold `renderParticipant` uses for the per-participant signal.
  */
 const STAGES_SEEN_FLOOR = 2.5;
+
+/**
+ * The D8 return rate below which the core bet is judged not to hold.
+ *
+ * Written down in `docs/ux-research/phase0-evaluation.md` §8 **before any data
+ * existed**, and cited here so the analysis cannot quietly move it after seeing
+ * the result. It is an experiment decision line, not an industry benchmark.
+ */
+const D8_RETURN_FLOOR = 0.3;
 
 /* --------------------------------------------------------------- constants */
 
@@ -172,6 +190,17 @@ export interface ParticipantReport {
 
   /** Reward animation: did anyone actually watch it? */
   stagesSeen: number[];
+
+  /**
+   * Did they come back after the story ended (offset >= 8)?
+   *
+   * `null` when the export predates the `postWeek` field, or when the export was
+   * taken before Day 8 — which is the normal case during the week and must not
+   * be read as "did not return".
+   */
+  returnedAfterStory: boolean | null;
+  /** The furthest offset after the week, when known. */
+  lastDayActive: number | null;
 }
 
 /**
@@ -303,6 +332,12 @@ export function analyse(raw: RawExport): ParticipantReport {
     daysWithSelection: byDay.size,
     tightestDay,
     stagesSeen,
+    // `false` for an export taken before Day 8 as well: at that moment they have
+    // not returned yet, which is the honest current value rather than an error.
+    // Only a missing `postWeek` field (an old export) is `null`.
+    returnedAfterStory:
+      raw.postWeek === undefined ? null : (raw.postWeek.daysActive ?? 0) > 0,
+    lastDayActive: raw.postWeek?.lastDayActive ?? null,
   };
 }
 
@@ -401,6 +436,16 @@ export interface AgeCohort {
   rewardViews: number;
   /** Null when nobody in the cohort has a `reward_viewed` event. */
   averageStagesSeen: number | null;
+  /**
+   * How many of this cohort came back after the 7-day story ended (offset >= 8),
+   * out of the participants whose export carries a `postWeek` report at all.
+   *
+   * This is the primary acceptance point: D1–D7 retention during a 7-day serial
+   * mostly measures whether the story held. Coming back when there is nothing
+   * left to unlock is the thing Phase 0 exists to find out.
+   */
+  returnedAfterStory: number | null;
+  postWeekKnown: number;
 }
 
 /** Group participants by age band, largest sample first within each group. */
@@ -418,11 +463,18 @@ export function cohortByAge(reports: readonly ParticipantReport[]): AgeCohort[] 
         participants: 0,
         rewardViews: 0,
         averageStagesSeen: null,
+        returnedAfterStory: null,
+        postWeekKnown: 0,
       };
       cohorts.set(band, cohort);
     }
     cohort.participants += 1;
     cohort.rewardViews += report.stagesSeen.length;
+    if (report.returnedAfterStory !== null) {
+      cohort.postWeekKnown += 1;
+      cohort.returnedAfterStory =
+        (cohort.returnedAfterStory ?? 0) + (report.returnedAfterStory ? 1 : 0);
+    }
   }
 
   for (const cohort of cohorts.values()) {
@@ -454,8 +506,10 @@ export function renderAgeCohorts(cohorts: readonly AgeCohort[]): string {
   const total = cohorts.reduce((n, c) => n + c.participants, 0);
   const unsegmented = cohorts.find((c) => c.ageBand === null)?.participants ?? 0;
 
-  lines.push("| 年龄组 | 参与者 | reward 观看次数 | 平均段数 | 判读 |");
-  lines.push("| --- | --- | --- | --- | --- |");
+  lines.push(
+    "| 年龄组 | 参与者 | reward 观看次数 | 平均段数 | D8+ 回访 | reward 观看判读 |",
+  );
+  lines.push("| --- | --- | --- | --- | --- | --- |");
 
   for (const cohort of cohorts) {
     let verdict: string;
@@ -471,15 +525,22 @@ export function renderAgeCohorts(cohorts: readonly AgeCohort[]): string {
           ? `${flag(true)} 低于 ${STAGES_SEEN_FLOOR} —— 这个年龄段的动画基本被跳过`
           : `${flag(false)} ≥ ${STAGES_SEEN_FLOOR} —— 行为→世界变化这一段被看到了`;
     }
+    const returned =
+      cohort.postWeekKnown === 0
+        ? "—"
+        : `${cohort.returnedAfterStory ?? 0}/${cohort.postWeekKnown} (${pct(
+            cohort.returnedAfterStory ?? 0,
+            cohort.postWeekKnown,
+          )})`;
     lines.push(
       `| ${cohort.label} | ${cohort.participants} | ${cohort.rewardViews} | ${
         cohort.averageStagesSeen === null ? "—" : cohort.averageStagesSeen.toFixed(1)
-      }/4 | ${verdict} |`,
+      }/4 | ${returned} | ${verdict} |`,
     );
   }
 
   if (total === 0) {
-    lines.push("| — | 0 | 0 | — | 没有参与者 |");
+    lines.push("| — | 0 | 0 | — | — | 没有参与者 |");
   }
 
   if (unsegmented > 0) {
@@ -491,7 +552,66 @@ export function renderAgeCohorts(cohorts: readonly AgeCohort[]): string {
     );
   }
 
+  lines.push("");
+  lines.push(renderPostWeekVerdict(cohorts));
+
   return lines.join("\n");
+}
+
+/**
+ * The D8 verdict, stated in words because it is the primary acceptance point.
+ *
+ * A D1–D7 number is mostly a measure of whether a 7-day serial held together.
+ * Coming back on Day 8 — when there is nothing new to unlock and nothing to
+ * lose by not coming — is the only clean signal that the world change itself is
+ * the reason. The thresholds here are the ones written down in the research
+ * evaluation §8 before any data existed, not a reading invented afterwards.
+ */
+export function renderPostWeekVerdict(cohorts: readonly AgeCohort[]): string {
+  const known = cohorts.filter((c) => c.postWeekKnown > 0);
+  const participants = known.reduce((n, c) => n + c.postWeekKnown, 0);
+  const returned = known.reduce((n, c) => n + (c.returnedAfterStory ?? 0), 0);
+
+  if (participants === 0) {
+    return (
+      "> **D8+ 回访无法判读**：所有导出都早于 Day 8，或来自还没有 `postWeek` 字段的版本。\n" +
+      "> 这是主验收点 —— 请在参与者跑完 7 天之后再导出一次（见 README「D8 窗口」）。"
+    );
+  }
+
+  const rate = returned / participants;
+  const marks = [
+    `> **D8+ 回访（主验收点）：${returned}/${participants} = ${pct(returned, participants)}**`,
+  ];
+  if (participants < MIN_COHORT_SIZE) {
+    marks.push("> 样本不足，不作为结论。");
+  } else if (rate < D8_RETURN_FLOOR) {
+    marks.push(
+      `> ⚠️ 低于先写下的阈值 ${Math.round(D8_RETURN_FLOOR * 100)}% —— ` +
+        "去掉代币之后，世界变化本身没有撑住动机；「7 天是连载效应，不是习惯」。",
+    );
+  } else {
+    marks.push(
+      `> ✅ 达到先写下的阈值 ${Math.round(D8_RETURN_FLOOR * 100)}% —— ` +
+        "故事结束后仍有自然回访，这是核心赌注成立的第一个证据。",
+    );
+  }
+
+  // The pooled verdict can be carried entirely by one age group while another
+  // never came back. Same aggregation trap as the reward column, and it matters
+  // more here because this is the acceptance point: "50%" reads like a pass
+  // while the target age came back exactly zero times.
+  const judged = known.filter((c) => c.postWeekKnown >= MIN_COHORT_SIZE);
+  const split = judged.filter((c) => (c.returnedAfterStory ?? 0) === 0);
+  if (judged.length > 1 && split.length > 0) {
+    marks.push(
+      `> ⚠️ **但这是混龄数字：${split
+        .map((c) => `${c.label} ${c.returnedAfterStory ?? 0}/${c.postWeekKnown}`)
+        .join("、")} 一次都没回来。** 达标可能完全由一个年龄段撑着 —— ` +
+        "逐档那一行才是结论，总数不是。",
+    );
+  }
+  return marks.join("\n");
 }
 
 export interface CohortTotals {
