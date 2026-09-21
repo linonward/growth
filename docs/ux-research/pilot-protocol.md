@@ -237,6 +237,10 @@ pnpm analyze P07-d11.json
 
 ## 相关
 
+- [`pilot-materials/README.md`](./pilot-materials/README.md) —— 材料清单与版本说明（从这里进）
+- [`pilot-materials/recruitment-pack.md`](./pilot-materials/recruitment-pack.md) —— **可直接复制/打印的材料**：招募文案、筛选问卷、症状清单、知情同意骨架、接触脚本
+- [`pilot-materials/handover-card.md`](./pilot-materials/handover-card.md) —— 打印用：交接清单 + 背面给孩子和家长的话
+- [`pilot-materials/verdict-card.md`](./pilot-materials/verdict-card.md) —— 打印用：一页判读卡，事先写好阈值，事后只填数
 - [`phase0-evaluation.md`](./phase0-evaluation.md) —— 所有判据与阈值的出处（§8）
 - [`../../AGENTS.md`](../../AGENTS.md) —— 三条硬约束：年龄分档只有实验者填、D8 是导出时机、目标库与文案规则
 - [`../../README.md`](../../README.md) —— 「年龄分档」「D8 窗口」「奖励节奏」三节

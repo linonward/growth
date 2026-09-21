@@ -102,6 +102,13 @@ gh api -X DELETE repos/linonward/growth/branches/main/protection
 | `pnpm analyze` | 分析 `/debug/export` 的 JSON，输出数据可信度报告 |
 | `scripts/check-pr-title.sh` | 校验 PR 标题（CI 会跑，本地也能跑） |
 
+**动手改任何文件之前，先 `git switch -c <type>/<short-name>`。**
+不要「先在 `main` 上改，回头再挪到分支」——这个动作已经犯过两次：
+改完、`pnpm verify` 过了、`git commit` 也做了，才发现自己在 `main` 上；
+此时要么走「reset --hard 回 origin/main + 把提交搬到新分支」的补救流程，
+要么就有 push 到 `main` 的风险。**先建分支的成本是一次命令，补一次的成本是
+一次 rebase 加一次心跳。** 判断方法随时可查：`git branch --show-current`。
+
 **开发服务器要用 `localhost` 打开，不要用 `127.0.0.1`。**
 Next 16 会拦截不在 `allowedDevOrigins` 里的来源，页面会服务端渲染出来但永远不 hydration，
 看起来就是卡在启动页。
