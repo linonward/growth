@@ -1,4 +1,4 @@
-import { clampDay } from "./constants";
+import { clampDay, finaleEarned } from "./constants";
 import type { WorldState } from "./types";
 
 /**
@@ -8,8 +8,10 @@ import type { WorldState } from "./types";
  * Day 4 adds the first flower and a butterfly, Day 6 reveals the mystery gate
  * (and deliberately never opens it), Day 7 opens the new area.
  *
- * `todayEnergy` only matters on Day 7, where the new area must be earned by
- * completing one of that day's goals rather than by arriving with 180 energy.
+ * `todayEnergy` only matters on Day 7, where the new area is earned by
+ * completing one of that day's goals rather than by arriving with a full
+ * energy total — see `finaleEarned()`, which also records why this used to
+ * require 180 total energy and what that cost the children who did less.
  */
 export function getWorldState(
   day: number,
@@ -29,8 +31,9 @@ export function getWorldState(
     flowerUnlocked: d >= 4,
     butterflyUnlocked: d >= 4,
     mysteryGateUnlocked: d >= 6,
-    // The finale needs the day, the energy that Day 7 implies, AND Day 7 action.
-    newAreaUnlocked: d >= 7 && energy >= 180 && Math.max(0, todayEnergy) > 0,
+    // The finale needs the day AND an action on that day. Nothing else: a child
+    // who completes one goal a day still gets the ending the week promised.
+    newAreaUnlocked: finaleEarned(d, todayEnergy),
   };
 }
 

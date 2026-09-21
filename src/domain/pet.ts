@@ -55,10 +55,17 @@ function stateFromEnergy(totalEnergy: number): PetState {
 /** The Day Gate ceiling for a given day. */
 function stateCapForDay(day: number, todayEnergy: number): PetState {
   const cap = PET_DAY_CAP[clampDay(day)] ?? "egg";
-  // Day 7's finale is earned by acting on Day 7 itself: spec section 11 plays
-  // the three events "after completing the final task". A perfect student
-  // arrives on Day 7 with exactly 180 energy, so without this they would see
-  // the whole finale at the day rollover and never get the moment.
+  // Day 7's finale is earned by acting that day: spec section 11 plays the
+  // three events "after completing the final task". A perfect student arrives
+  // on Day 7 with exactly 180 energy, so without this they would see the whole
+  // finale at the day rollover and never get the moment.
+  //
+  // Note the state is still `min(energy, cap)`, so this only matters to a
+  // student who has actually reached 180 — the ending is available to every
+  // completion rate through the world gate (`finaleEarned`), not by handing out
+  // pet states the energy ladder did not earn. Showing a child a fully grown
+  // pet they did not grow would contradict the one line the whole screen is
+  // built on: 这一切都来自你现实里的成长.
   if (cap === "evolved" && todayEnergy <= 0) return "young";
   return cap;
 }

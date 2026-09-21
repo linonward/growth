@@ -111,3 +111,28 @@ export async function readPersistedState(page: Page) {
     return raw ? JSON.parse(raw).state : null;
   }, STORAGE_KEY);
 }
+
+/**
+ * Merge a partial state into the persisted snapshot.
+ *
+ * For tests that need a specific *starting* state — e.g. the energy a
+ * one-goal-a-day child would have on Day 7 — without replaying six days through
+ * the UI. The stored `version` is preserved so the store's migration path stays
+ * exercised.
+ */
+export async function writePersistedState(
+  page: Page,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  await page.evaluate(
+    ({ key, next }) => {
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : { state: {}, version: 1 };
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({ ...parsed, state: { ...parsed.state, ...next } }),
+      );
+    },
+    { key: STORAGE_KEY, next: patch },
+  );
+}

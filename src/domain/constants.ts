@@ -38,3 +38,34 @@ export function clampDay(day: number): number {
   if (!Number.isFinite(day)) return 1;
   return Math.min(TOTAL_DAYS, Math.max(1, Math.floor(day)));
 }
+
+/**
+ * Whether the Day 7 ending has been earned.
+ *
+ * Spec section 11 plays the closing beat — the mystery gate opening — when the
+ * student completes the final task, and the point of that wording is that the
+ * ending is earned by *acting on the final day*, not by arriving with a large
+ * total.
+ *
+ * This is consulted by `getWorldState()` instead of an energy threshold. The
+ * energy threshold it replaced required `totalEnergy >= 180`, i.e. six perfect
+ * days, because the pet and plant ladders happen to top out at 180. That made
+ * the last day a different experience per completion rate:
+ *
+ *   - 3 goals a day: the gate opened, the pet evolved and the tree bloomed
+ *   - 1 goal a day: nothing happened at all, the gate promised on Day 6 stayed
+ *     shut forever, and the home screen told the child the 7-day journey was
+ *     "complete"
+ *
+ * which is the opposite of what this prototype is for (P5: doing less is never
+ * punished). The pet and plant keep their energy ladders, so a child who did
+ * less sees their *real* pet and tree — that is honest. The ending itself, the
+ * thing the whole week promised, is now available to everyone who shows up and
+ * acts on the last day.
+ *
+ * The first five days of Day Gate throttling are untouched: they are what makes
+ * "will they come back tomorrow" measurable.
+ */
+export function finaleEarned(day: number, todayEnergy: number): boolean {
+  return clampDay(day) >= TOTAL_DAYS && Math.max(0, todayEnergy) > 0;
+}

@@ -34,16 +34,30 @@ describe("describeRewardChange", () => {
   });
 
   it("reports the plant growing when the pet is capped", () => {
-    const change = describeRewardChange(7, 80);
+    // Day 5, pet already at its Day 5 cap, plant steps 80 -> 90.
+    const change = describeRewardChange(5, 80, "小光", 20);
     expect(change.target).toBe("plant");
     expect(change.title).toContain("新叶子");
   });
 
-  it("reports the Day 7 bloom as a major moment", () => {
+  it("leads with the gate opening on Day 7, ahead of the bloom", () => {
+    // Spec section 11 plays the closing beat as ONE moment after the final
+    // task. A student crossing 180 total energy on that goal would otherwise
+    // get bloom -> evolved and never be told the door had opened.
     const change = describeRewardChange(7, 170);
-    expect(change.target).toBe("plant");
+    expect(change.target).toBe("world");
     expect(change.isMajor).toBe(true);
-    expect(change.title).toContain("开花");
+    expect(change.title).toContain("门后的世界打开了");
+  });
+
+  it("still gives a low-completion child a Day 7 ending", () => {
+    // One goal a day = 60 energy entering Day 7. The plant does not bloom and
+    // the pet does not evolve at that total — but the ending, the thing Day 6
+    // promised, must still land.
+    const change = describeRewardChange(7, 60);
+    expect(change.target).toBe("world");
+    expect(change.isMajor).toBe(true);
+    expect(change.title).toContain("门后的世界打开了");
   });
 
   it("varies the small reward copy instead of repeating one line", () => {
@@ -63,9 +77,15 @@ describe("detectDayMilestone", () => {
     expect(detectDayMilestone(2, 20)).toBeNull();
   });
 
-  it("fires the Day 7 finale when the new area unlocks", () => {
+  it("fires the Day 7 finale whenever a Day 7 action opens the door", () => {
+    // Acting on the final day is the trigger, at any total: this is now the same
+    // condition as the new area unlocking, so 160 and 170 both count.
     expect(detectDayMilestone(7, 170)?.id).toBe("day7_finale");
-    expect(detectDayMilestone(7, 160)).toBeNull();
+    expect(detectDayMilestone(7, 60)?.id).toBe("day7_finale");
+    // No action that day (todayEnergyAfter defaults to 0 here) = no finale.
+    expect(detectDayMilestone(7, 170, "小光", 0)).toBeNull();
+    // Day 6, at any energy: still only the reveal, never the opening.
+    expect(detectDayMilestone(6, 200)).toBeNull();
   });
 
   it("does not fire the mystery gate from a goal completion", () => {
