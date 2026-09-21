@@ -134,6 +134,12 @@ schema 里没有 reset 事件）—— Debug 按钮很容易误触，
 - `experiment_version` / `experiment_day` 由 `createEvent()` 统一合并，
   调用点不用管，也不可能漏
 
+**`pnpm analyze` 是 Pilot 收尾的分析工具，不要让它依赖新增采集。**
+`scripts/analyze-export.ts` 只吃 `/debug/export` 的 JSON，四个可信度信号全部来自
+已有时间戳。唯一为它加过的采集是 `reward_viewed.stages_seen` —— 记录孩子**实际看完**
+几段（1–4）。注意**跳过会直接跳到第 4 段**，所以计数必须在按下跳过时冻结；
+按"最远到达的阶段"计数会把跳过误记成全部看完（`e2e` 有测试守着）。
+
 **Session Replay 保持关闭。** 真要开，得先处理监护人同意、输入遮罩、
 数据保留和儿童隐私合规 —— 不是改个配置的事。
 
