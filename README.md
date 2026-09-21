@@ -771,3 +771,6 @@ Framer Motion · Zustand（persist → localStorage）· Vitest · Playwright
 Goal System / Family / AI / Long-term Progression，但 Phase 0 只证明一件事：
 
 > **孩子不是因为 App 要求他打卡而回来，而是因为他想看看「自己的世界接下来会变成什么样」。**
+
+下一阶段怎么开工（含门禁现状与四个必须先补的坑）见
+[`docs/phase1-charter.md`](docs/phase1-charter.md)。
