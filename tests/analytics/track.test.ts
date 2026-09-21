@@ -58,6 +58,7 @@ describe("AC ④ unified event schema", () => {
       isMajor: false,
       target: "pet",
       stagesSeen: 4,
+      skipped: false,
     });
     trackPetViewed({ day: 1, petState: "egg" });
     trackPlantViewed({ day: 1, plantState: "seed" });
@@ -116,6 +117,7 @@ describe("AC ⑤ every event carries the common properties", () => {
           isMajor: true,
           target: "pet",
           stagesSeen: 2,
+          skipped: false,
         }),
       () => trackPetViewed({ day: 3, petState: "baby" }),
       () => trackPlantViewed({ day: 3, plantState: "leaf" }),
@@ -165,6 +167,7 @@ describe("age_band is a common property, not a per-event one", () => {
       isMajor: false,
       target: "energy",
       stagesSeen: 3,
+      skipped: false,
     });
     trackInitiativeAnswered({ day: 1, initiative: "self" });
     trackMilestoneViewed({ day: 1, milestoneId: "x" });
@@ -256,9 +259,35 @@ describe("reward_viewed records how much was actually watched", () => {
       isMajor: false,
       target: "plant",
       stagesSeen: 1,
+      skipped: true,
     });
     expect(last().name).toBe("reward_viewed");
     expect(last().props.stages_seen).toBe(1);
+  });
+
+  it("separates a deliberate skip from tapping through at your own pace", () => {
+    // After the sequence became tap-to-advance, a child can reach stage 4 in two
+    // seconds and score stages_seen: 4 without reading anything. Only `skipped`
+    // distinguishes "I want out" from "I'm reading faster than the timer".
+    trackRewardViewed({
+      day: 2,
+      goalType: "math",
+      isMajor: false,
+      target: "stars",
+      stagesSeen: 4,
+      skipped: true,
+    });
+    expect(last().props).toMatchObject({ stages_seen: 4, skipped: true });
+
+    trackRewardViewed({
+      day: 2,
+      goalType: "math",
+      isMajor: false,
+      target: "stars",
+      stagesSeen: 4,
+      skipped: false,
+    });
+    expect(last().props).toMatchObject({ stages_seen: 4, skipped: false });
   });
 });
 

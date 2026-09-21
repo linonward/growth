@@ -14,14 +14,70 @@ import type { RewardMoment, RewardStage } from "@/domain/types";
 import { useMilestone, useTodayEnergy } from "@/store/hooks";
 import { usePrototypeStore } from "@/store/prototype-store";
 
-/** Spec section 5 timings. Major moments linger, but never past 2.5s. */
-/** Stage order, used to record how far the child got before closing. */
+/**
+ * Stage order, used to record how far the child got before closing.
+ *
+ * `stagesSeen` is deliberately a *mechanical* count — how many stages were on
+ * screen — not a claim about attention. It is reported next to `skipped` for
+ * exactly that reason: a child who taps through four stages in two seconds now
+ * scores 4, and only the skip button tells you they meant to leave. The
+ * experiment reads the pair, never the count alone.
+ */
 const REWARD_STAGES: readonly RewardStage[] = ["confirm", "energy", "change", "next"];
 
-const CONFIRM_MS = 900;
-const ENERGY_MS = 900;
-const CHANGE_MS = 1700;
-const MAJOR_CHANGE_MS = 2500;
+/**
+ * How long each stage stays up before advancing on its own.
+ *
+ * Spec section 5 says a major moment may linger; the original timings (900 /
+ * 900 / 1700 / 2500 ms) were set for an adult reading speed. The third stage
+ * carries up to ~25 characters of Chinese, which at 900 ms is not readable by
+ * a six-year-old — so the timings now scale with the recorded age band, and
+ * the tap is the primary way to advance. The auto-advance is a floor for a
+ * child who does nothing, not the pace we expect them to follow.
+ */
+const STAGE_MS = {
+  confirm: 1100,
+  energy: 1100,
+  change: 2000,
+  majorChange: 3000,
+} as const;
+
+/** Never shorten the morph itself, even for the eldest band. */
+const REVEAL_NOMINAL_MS = 1700;
+
+/**
+ * How long before a stage can be tapped past.
+ *
+ * Long enough that the stage has visibly drawn — so a fast tapper cannot skip
+ * the change before it appears — short enough that nobody sits waiting for the
+ * button to un-grey.
+ */
+const TAP_UNLOCK_MS = Math.max(500, REVEAL_NOMINAL_MS * 0.35);
+
+/**
+ * Reading-speed multiplier per recorded age band.
+ *
+ * Deliberately derived from the band the experimenter already records, rather
+ * than a new setting: the 6–7 band is the whole reason this exists, and the
+ * band is already on the participant. `null` (unrecorded) gets the young
+ * pacing — a slower animation is harmless to a fluent reader, a faster one is
+ * not harmless to a beginner.
+ */
+function paceMultiplier(ageBand: string | null | undefined): number {
+  switch (ageBand) {
+    case "11-12":
+      return 1;
+    case "10-11":
+      return 1.15;
+    case "9-10":
+      return 1.3;
+    case "8-9":
+      return 1.45;
+    default:
+      // "6-7", "7-8", and "not recorded".
+      return 1.6;
+  }
+}
 
 /**
  * The full-screen completion feedback.
@@ -45,10 +101,40 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
   const router = useRouter();
   const dismissReward = usePrototypeStore((s) => s.dismissReward);
   const markMilestoneSeen = usePrototypeStore((s) => s.markMilestoneSeen);
+  const ageBand = usePrototypeStore((s) => s.profile.ageBand);
   const todayEnergy = useTodayEnergy();
   const milestone = useMilestone();
 
   const [stage, setStage] = useState<RewardStage>("confirm");
+
+  const pace = paceMultiplier(ageBand);
+  const showMs = (() => {
+    switch (stage) {
+      case "confirm":
+        return STAGE_MS.confirm * pace;
+      case "energy":
+        return STAGE_MS.energy * pace;
+      case "change":
+        return (reward.change.isMajor ? STAGE_MS.majorChange : STAGE_MS.change) * pace;
+      default:
+        return null;
+    }
+  })();
+
+  // Whether the child can move on by tapping yet. Held back just long enough
+  // that a stage is not skipped before it has been drawn — a tap is a way to
+  // read at your own speed, not a way to miss the beat entirely.
+  //
+  // The "which stage has unlocked" record rather than a boolean, because
+  // resetting a boolean would mean calling setState inside the effect body,
+  // which the lint rules (rightly) reject as a cascading render. A stage can
+  // only be reached once, so remembering the last unlocked one is enough.
+  const [unlockedStage, setUnlockedStage] = useState<RewardStage | null>(null);
+  const tapReady = unlockedStage === stage;
+  useEffect(() => {
+    const t = setTimeout(() => setUnlockedStage(stage), TAP_UNLOCK_MS);
+    return () => clearTimeout(t);
+  }, [stage]);
 
   // How far the child actually got before closing. The sequence is skippable by
   // design, so "was the behaviour -> world change beat actually seen?" is an
@@ -69,6 +155,12 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
     setStage("next");
   };
 
+  const advance = () => {
+    if (stage === "confirm") setStage("energy");
+    else if (stage === "energy") setStage("change");
+    else if (stage === "change") setStage("next");
+  };
+
   useEffect(() => {
     if (reward.milestone) markMilestoneSeen(reward.milestone.id);
   }, [reward, markMilestoneSeen]);
@@ -80,28 +172,20 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
       isMajor: reward.change.isMajor,
       target: reward.change.target,
       stagesSeen: stagesSeen.current,
+      // Tells "tapped through at their own pace" apart from "pressed skip".
+      // `stages_seen` alone cannot: both can end on the last stage.
+      skipped: skipped.current,
     });
     dismissReward();
   };
 
   useEffect(() => {
-    if (stage === "confirm") {
-      const t = setTimeout(() => setStage("energy"), CONFIRM_MS);
-      return () => clearTimeout(t);
-    }
-    if (stage === "energy") {
-      const t = setTimeout(() => setStage("change"), ENERGY_MS);
-      return () => clearTimeout(t);
-    }
-    if (stage === "change") {
-      const t = setTimeout(
-        () => setStage("next"),
-        reward.change.isMajor ? MAJOR_CHANGE_MS : CHANGE_MS,
-      );
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, [stage, reward.change.isMajor]);
+    if (showMs === null) return undefined;
+    const t = setTimeout(advance, showMs);
+    return () => clearTimeout(t);
+    // `advance` is derived from `stage`, which is already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMs, stage]);
 
   const template = getGoalTemplate(reward.templateId);
 
@@ -118,13 +202,36 @@ function RewardSequence({ reward }: { reward: RewardMoment }) {
       aria-modal="true"
       aria-label="完成反馈"
     >
-      <div className="flex justify-end p-3">
+      <div className="flex items-center justify-between gap-2 p-3">
+        {/*
+          The advance affordance. It used to be nothing at all — the sequence
+          advanced on a timer and the only visible control was a faint grey
+          "跳过" in the corner, which is the least button-like button in the app.
+          A child who reads slowly had no way to slow it down.
+        */}
+        {stage !== "next" ? (
+          <button
+            type="button"
+            onClick={advance}
+            data-testid="reward-advance"
+            data-ready={tapReady}
+            aria-label="看完了，继续"
+            className={`tap-target rounded-full px-3 text-[13px] transition-opacity ${
+              tapReady ? "text-ink-soft opacity-100" : "text-ink-faint opacity-0"
+            }`}
+          >
+            轻点继续
+          </button>
+        ) : (
+          <span />
+        )}
+
         {stage !== "next" ? (
           <button
             type="button"
             onClick={handleSkip}
             data-testid="reward-skip"
-            className="tap-target rounded-full px-3 text-[13px] text-ink-faint"
+            className="tap-target shrink-0 rounded-full border border-sand-deep/50 bg-white/70 px-3 text-[13px] font-medium text-ink-soft"
           >
             跳过
           </button>
