@@ -27,7 +27,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | 命令 | 说明 |
 | --- | --- |
 | `pnpm dev` | 开发服务器（:3000） |
-| `pnpm verify` | CI 跑的全部检查 —— 收工前先跑这个 |
+| `pnpm verify` | CI `verify` job 的全部检查 —— 收工前先跑这个 |
+| `pnpm e2e` | Playwright；CI 里是单独的 job |
 | `pnpm check` | Biome 格式化 **+ 整理 import** |
 | `pnpm format` | **只**格式化 —— 见下面的坑 |
 | `pnpm test` / `pnpm e2e` | Vitest 单测 / Playwright 端到端 |
@@ -43,6 +44,15 @@ Next 16 会拦截不在 `allowedDevOrigins` 里的来源，页面会服务端渲
 
 **`next dev` 运行时不要 `rm -rf .next`。**
 这会毁掉 Turbopack 的 dev 产物，服务器会开始返回 500，直到重启才恢复。
+
+**`typecheck` 依赖 Next 生成的类型，所以它先跑 `next typegen`。**
+`LayoutProps` / `PageProps` 是生成在 `.next/types/routes.d.ts` 里的全局类型。
+直接 `tsc --noEmit` 在**全新克隆**上会报 `Cannot find name 'LayoutProps'` ——
+本地因为 `.next` 一直存在所以看不出来。改 `typecheck` 脚本时不要把这个前缀去掉。
+
+**分析脚本里的"时间"要用孩子的时区，不是跑分析的机器的。**
+`/debug/export` 会记录 `timezoneOffsetMinutes`；`analyze-export.ts` 用它换算。
+CI runner 是 UTC，用 `getHours()` 会让「时段异常」静默变成 0 —— 这个 bug 真的发生过。
 
 ## 架构
 

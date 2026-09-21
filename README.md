@@ -10,6 +10,27 @@
 Phase 0 **不做**：登录注册、后端、AI、社交、排行榜、商城、金币、付费、老师端、家长后台。
 所有数据保存在 `localStorage`。
 
+## 持续集成
+
+`.github/workflows/ci.yml`，两个 job：
+
+| job | 内容 |
+| --- | --- |
+| `verify` | `check:ci` · `typecheck` · `lint` · `test` · `build` |
+| `e2e` | Playwright（mobile chromium），失败时上传 trace |
+
+两个刻意的选择：
+
+- **不注入 `NEXT_PUBLIC_POSTHOG_KEY`** —— 让 CI 负责守住「没有 key 也必须能构建、
+  能跑」这条规则。实测无 key 时欢迎页、选目标、导出全部正常，本地日志照常记录，
+  只有 0 个请求发往 PostHog（见 AGENTS.md 的 Analytics 约束）。
+- **`check:ci` 而不是 `check`** —— 前者只读，格式漂移会失败而不是被悄悄改掉。
+
+> CI 头两次跑都挂了，抓到的都是**本地树会掩盖的可移植性问题**：
+> `typecheck` 依赖 `.next`（已改为先跑 `next typegen`），
+> 以及「时段异常」用了分析机器的时区而不是孩子的（已随导出记录 offset）。
+> 这类问题只有干净环境才暴露得出来。
+
 ## 相关文档
 
 | 文档 | 内容 |
