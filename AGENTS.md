@@ -28,11 +28,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | --- | --- |
 | `pnpm dev` | 开发服务器（:3000） |
 | `pnpm verify` | CI `verify` job 的全部检查 —— 收工前先跑这个 |
-| `pnpm e2e` | Playwright；CI 里是单独的 job |
 | `pnpm check` | Biome 格式化 **+ 整理 import** |
 | `pnpm format` | **只**格式化 —— 见下面的坑 |
-| `pnpm test` / `pnpm e2e` | Vitest 单测 / Playwright 端到端 |
+| `pnpm test` | Vitest 单测 |
+| `pnpm e2e` | Playwright 端到端（CI 里是单独的 job） |
 | `pnpm typecheck` / `pnpm lint` | tsc / ESLint |
+| `pnpm analyze` | 分析 `/debug/export` 的 JSON，输出数据可信度报告 |
 
 **开发服务器要用 `localhost` 打开，不要用 `127.0.0.1`。**
 Next 16 会拦截不在 `allowedDevOrigins` 里的来源，页面会服务端渲染出来但永远不 hydration，
