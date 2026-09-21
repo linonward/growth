@@ -355,11 +355,33 @@ src/analytics/
 ### 身份：匿名 participant UUID
 
 首次进入生成 `crypto.randomUUID()` 并持久化到 `growth-world-participant-v1`
-（独立 key，所以 Reset 不会换人），随后 `posthog.identify(participantId, { experiment_version })`。
+（独立 key，所以 Reset 不会换人），随后 `posthog.identify(participantId, { experiment_version, age_band })`。
 
-> **绝不 identify 真实身份。** 目标用户是 8–12 岁儿童，数据最小化从现在就要坚持：
-> 不要 email、手机号、真实姓名、学校。`identify()` 只接受那个 UUID。
+> **绝不 identify 真实身份。** 目标用户是 6–12 岁儿童，数据最小化从现在就要坚持：
+> 不要 email、手机号、真实姓名、学校。`identify()` 只接受那个 UUID 和两个研究级属性
+> （`experiment_version` / `age_band`）。
 > `.env.example` 里也写明了不要加任何存放真实身份的变量。
+
+### 年龄分档：唯一的「关于人」的属性
+
+Phase 0 现在覆盖 6–12 岁小学阶段，而 6 岁和 11 岁不是同一群用户（识字数、时间量感、
+自评能力都不同）。所以每个参与者要记一个**一学年宽**的年龄档，单一出处是
+`src/domain/age-band.ts` 的 `AGE_BANDS`：
+
+```text
+6-7  7-8  8-9  9-10  10-11  11-12
+```
+
+- **由实验者在设备交接时填写**，不让孩子自己选（那是让 6 岁孩子自报学段）：
+  `?debug=1` 面板最上面的「年龄组」就是它。
+- 同时进 `profile`（导出用）与公共属性 `age_band`（每个事件用）。只写 profile
+  会让导出正确、而所有事件都丢分档 —— 两条路径都走 `analytics/properties.ts`。
+- **不采出生年月日。** 一学年宽就是分析需要的粒度，多采一分都是多余的身份信息。
+- 未记录时是**显式 `null`**，不是缺字段：报告里要能看到"多少数据未分档"。
+- `experiment_version` 随之升到 `phase0-v2` —— v1 是 8–12 的研究，池子不同，
+  混池会让「6–8 岁组」里混进一个从未招募过该年龄的研究。
+
+`/debug/export` 页面会显示当前档位，未填时给出提示。
 
 ### 事件 Schema：14 个，只回答 6 个问题
 
@@ -480,7 +502,7 @@ day7_completed → continue_requested
 | referrer / 来源域名 | ❌ 从不发送 |
 | 请求目标 | 只发到自己的域名 `/ingest/*`，浏览器端不出现 `posthog.com` |
 
-Session Replay 对调试很诱人，但面对 8–12 岁儿童不能顺手打开 ——
+Session Replay 对调试很诱人，但面对 6–12 岁儿童不能顺手打开 ——
 真要开，得先单独处理监护人同意、采集范围、输入遮罩、数据保留与合规。
 
 ### 离线兜底

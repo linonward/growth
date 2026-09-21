@@ -14,7 +14,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # 项目说明
 
-这是「7 天学生成长世界」的 Phase 0 原型，面向 8–12 岁学生。
+这是「7 天学生成长世界」的 Phase 0 原型，面向 6–12 岁小学阶段学生。
 它只验证一件事，其余一律不做：
 
 > **孩子回来，是因为他想看看自己的世界接下来会变成什么样，而不是因为 App 催他打卡。**
@@ -201,15 +201,26 @@ schema 里没有 reset 事件）—— Debug 按钮很容易误触，
 
 **参与者身份只能是匿名 UUID。** 投递出去的 `distinct_id` 只能是
 `getParticipantId()` 返回的那个 `crypto.randomUUID()`（身份通过一次 `$identify`
-事件登记，`$set` 里只有 `experiment_version`）。
-绝不允许 email / 手机号 / 真实姓名 / 学校 —— 用户是 8–12 岁儿童，
+事件登记，`$set` 里只有 `experiment_version` 和 `age_band`）。
+绝不允许 email / 手机号 / 真实姓名 / 学校 —— 用户是 6–12 岁儿童，
 数据最小化是硬要求，不是偏好。`.env.example` 里也写了这条。
+
+**`age_band` 是唯一的「关于人」的属性，而且只有实验者能填。**
+取值是**一学年宽**的 6 个档（`domain/age-band.ts` 的 `AGE_BANDS`，单一出处）：
+6-7 到 11-12。它同时进 `profile`（导出用）和公共属性（每个事件用），
+两条路径都走 `analytics/properties.ts`，因为只写进 profile 会让导出正确、
+而所有事件都丢分档。**不要把它做成孩子自己选的**——那是让 6 岁孩子自报学段；
+也**不要**采出生年月日，一学年宽的档位就是分析需要的粒度，多采一分都是多余的
+身份信息。未记录时是**显式 `null`**，不是缺字段：报告里要能看到"有多少数据
+是未分档的"，而不是让缺失假装成"这个事件不带这个属性"。
+`experiment_version` 也因此升到 `phase0-v2` —— v1 是 8–12 的研究，池子不同，
+混在一起「6–8 岁组」就变成了一个从未招募过该年龄的研究。
 
 **事件 schema 是 14 个，写在 `ANALYTICS_EVENT_NAMES`（`domain/types.ts`）。**
 不要因为「加个埋点」就新增事件：
 - 需要新维度 → 扩展已有事件的属性（`goal_completed.goal_type` 就是这么做的）
 - 不要每个按钮一个事件；事件表是假设驱动的
-- `experiment_version` / `experiment_day` 由 `createEvent()` 统一合并，
+- `experiment_version` / `experiment_day` / `age_band` 由 `createEvent()` 统一合并，
   调用点不用管，也不可能漏
 
 **`pnpm analyze` 是 Pilot 收尾的分析工具，不要让它依赖新增采集。**

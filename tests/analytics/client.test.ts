@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EXPERIMENT_VERSION } from "@/analytics/properties";
+
 /**
  * The HTTP transport, exercised with a mocked fetch.
  *
@@ -80,12 +82,31 @@ describe("event context properties", () => {
     expect(lastBody().properties.$pathname).toBe("/history");
   });
 
-  it("$identify carries the anonymous id and only experiment_version in $set", async () => {
+  it("$identify carries the anonymous id and only the study person properties in $set", async () => {
     const { initAnalytics } = await loadClient();
     await initAnalytics();
     const body = lastBody();
     expect(body.distinct_id).toMatch(/^[0-9a-f-]{36}$/i);
+    // An unrecorded band must not appear as a null or a guess.
     expect(Object.keys(body.properties.$set)).toEqual(["experiment_version"]);
+  });
+
+  it("$identify registers the recorded age band as a person property", async () => {
+    // Record the band *before* the client module is loaded, which is the order
+    // the app uses: the experimenter picks it during setup, then the app opens.
+    // Both imports must share one module registry, hence `loadClient`'s reset
+    // happens first and the properties import is not re-reset.
+    vi.resetModules();
+    process.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key";
+    const { setActiveAgeBand } = await import("@/analytics/properties");
+    setActiveAgeBand("6-7");
+    const { initAnalytics } = await import("@/analytics/client");
+    await initAnalytics();
+
+    expect(lastBody().properties.$set).toEqual({
+      experiment_version: EXPERIMENT_VERSION,
+      age_band: "6-7",
+    });
   });
 });
 

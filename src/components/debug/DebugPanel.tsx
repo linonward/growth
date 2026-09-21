@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 
+import { AGE_BAND_OPTIONS } from "@/domain/age-band";
 import { MAX_TOTAL_ENERGY } from "@/domain/constants";
 import { selectTotalEnergy, usePrototypeStore } from "@/store/prototype-store";
 
@@ -27,6 +28,8 @@ export function DebugPanel() {
   const [open, setOpen] = useState(true);
 
   const day = usePrototypeStore((s) => s.currentDay);
+  const ageBand = usePrototypeStore((s) => s.profile.ageBand);
+  const setAgeBand = usePrototypeStore((s) => s.setAgeBand);
   const totalEnergy = usePrototypeStore(selectTotalEnergy);
   const debugSetDay = usePrototypeStore((s) => s.debugSetDay);
   const debugAdjustEnergy = usePrototypeStore((s) => s.debugAdjustEnergy);
@@ -68,6 +71,50 @@ export function DebugPanel() {
 
         {open ? (
           <div className="mt-2 space-y-2">
+            {/*
+              Age band comes first because it is the one control set during
+              device setup, before the student touches anything. Every event and
+              the export carry it, so an unrecorded band makes the participant
+              unsegmentable — which is the whole reason this exists.
+            */}
+            <div data-testid="debug-age-band">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-cream/70">年龄组（实验者填写）</span>
+                <span
+                  className={`font-semibold ${ageBand ? "text-cream" : "text-[#ffc9a3]"}`}
+                  data-testid="debug-age-band-value"
+                >
+                  {ageBand ?? "未记录"}
+                </span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-4 gap-1">
+                {AGE_BAND_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    data-testid={`debug-age-${option.id}`}
+                    aria-pressed={ageBand === option.id}
+                    onClick={() => setAgeBand(ageBand === option.id ? null : option.id)}
+                    className={`min-h-9 rounded-button px-1 text-[11px] font-medium ${
+                      ageBand === option.id
+                        ? "bg-leaf-deep text-white"
+                        : "bg-cream/15 text-cream hover:bg-cream/25"
+                    }`}
+                  >
+                    {option.id}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  data-testid="debug-age-clear"
+                  onClick={() => setAgeBand(null)}
+                  className="min-h-9 rounded-button bg-cream/15 px-1 text-[11px] font-medium text-cream/70 hover:bg-cream/25"
+                >
+                  清除
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between gap-2">
               <span className="text-cream/70">Current Day</span>
               <div className="flex items-center gap-1">

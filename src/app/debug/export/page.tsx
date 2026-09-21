@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { ageBandLabel } from "@/domain/age-band";
 import { usePrototypeStore } from "@/store/prototype-store";
 
 /**
@@ -43,6 +44,24 @@ export default function ExportPage() {
       <section className="px-5 pt-4" data-testid="export-summary">
         <div className="rounded-card bg-parchment px-4 py-4 text-[13px] text-ink-soft">
           <p>
+            年龄组：
+            <span
+              className={`font-semibold ${
+                payload.profile.ageBand ? "text-ink" : "text-[#b4552d]"
+              }`}
+              data-testid="export-age-band"
+            >
+              {ageBandLabel(payload.profile.ageBand)}
+            </span>
+          </p>
+          {payload.profile.ageBand ? null : (
+            <p className="mt-1 text-[12px] text-[#b4552d]">
+              未记录年龄组 —— 这份数据无法按年龄分段。请在
+              <span className="font-semibold">?debug=1</span>
+              面板中补填后重新导出。
+            </p>
+          )}
+          <p className="mt-1">
             打开次数：
             <span className="font-semibold text-ink">
               {payload.summary.appOpenedCount}
