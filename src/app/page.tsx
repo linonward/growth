@@ -10,6 +10,7 @@ import { IconChevronRight, IconSprout, IconSun } from "@/components/ui/icons";
 import { ThemePanel } from "@/components/world/ThemePanel";
 import { ThemeProvider } from "@/components/world/ThemeProvider";
 import { SCENE, WorldScene } from "@/components/world/WorldScene";
+import { dominantGroup } from "@/domain/growth-mix";
 import { getCloudCount } from "@/domain/world";
 import { resolveWorldTheme } from "@/domain/world-theme";
 import { useGrowth, useMilestone, useTodayEnergy } from "@/store/hooks";
@@ -38,6 +39,24 @@ export default function WorldPage() {
   const petSpecies = usePrototypeStore((s) => s.profile.petSpecies);
   const storedTheme = usePrototypeStore((s) => s.profile.worldTheme);
   const worldTheme = resolveWorldTheme(storedTheme);
+  /*
+   * Named from what this island has grown most from, so the caption and the
+   * scenery can never tell different stories.
+   *
+   * Before anything has been done the grove is empty, so there is nothing to
+   * attribute and the line says what is upcoming instead. (Defaulting to
+   * "study" here would tell a child that a tree came from work they have not
+   * done — and it would be the first thing they read.)
+   */
+  const grown = dominantGroup(growth.worldState.growthMix);
+  const grownLine =
+    grown === "study"
+      ? "岛上的树，是你做过的学习长出来的。"
+      : grown === "school"
+        ? "那些小石头，是你上课做到的事留下的。"
+        : grown === "life"
+          ? "旁边的花丛，是你生活里做的事长出来的。"
+          : "你做的事，会慢慢长成这个岛。";
   const pendingInitiativeDay = usePrototypeStore((s) => s.pendingInitiativeDay);
 
   const day = growth.currentDay;
@@ -113,8 +132,8 @@ export default function WorldPage() {
       </div>
 
       {/* ---- 我的世界 ---- */}
-      <div className="relative -mt-2 pb-7">
-        <div className="flex items-center gap-2 px-5 pb-4">
+      <div className="relative -mt-2 pt-3 pb-7">
+        <div className="flex items-center gap-2 px-5">
           <span className="chip h-7 w-7 bg-leaf-wash text-leaf-deep" aria-hidden>
             <IconSprout size={16} />
           </span>
@@ -122,6 +141,14 @@ export default function WorldPage() {
             {worldName}
           </h1>
         </div>
+        {/*
+          The island is shaped by what the child actually did, and that is
+          invisible unless it is said: a grove looks like scenery. One short
+          line, no numbers — the point is "this is yours", not "you scored 7".
+        */}
+        <p className="t-caption mt-1.5 px-5 text-[12px]" data-testid="world-grown-from">
+          {grownLine}
+        </p>
 
         <EnergyPanel
           todayEnergy={todayEnergy}

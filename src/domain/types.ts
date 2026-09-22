@@ -5,6 +5,7 @@
  * any React / browser dependency so they can be unit tested in isolation.
  */
 
+import type { GrowthMix } from "./growth-mix";
 import type { RewardChange } from "./reward";
 import type { WorldThemeId } from "./world-theme";
 
@@ -130,6 +131,14 @@ export interface WorldState {
    * because of what the child did, not because a date arrived).
    */
   starsEarned: number;
+  /**
+   * What the child has been doing, which the island's scenery grows from.
+   *
+   * Here rather than derived in the view because it *is* world state: two
+   * children with the same energy have different islands, and the snapshot is
+   * the thing the scene renders. See `domain/growth-mix.ts`.
+   */
+  growthMix: GrowthMix;
 }
 
 export interface GrowthState {

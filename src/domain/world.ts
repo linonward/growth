@@ -1,4 +1,5 @@
 import { clampDay, finaleEarned, TOTAL_DAYS } from "./constants";
+import { EMPTY_MIX, type GrowthMix } from "./growth-mix";
 import type { WorldState } from "./types";
 
 /**
@@ -41,6 +42,7 @@ export function getWorldState(
   totalEnergy: number,
   todayEnergy = 0,
   activeDays = 0,
+  growthMix: GrowthMix = EMPTY_MIX,
 ): WorldState {
   const d = clampDay(day);
   const energy = Math.max(0, totalEnergy);
@@ -59,6 +61,7 @@ export function getWorldState(
     // who completes one goal a day still gets the ending the week promised.
     newAreaUnlocked: finaleEarned(d, todayEnergy),
     starsEarned: starsEarnedBy(d, activeDays),
+    growthMix,
   };
 }
 

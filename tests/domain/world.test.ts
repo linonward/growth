@@ -13,6 +13,8 @@ describe("getWorldState", () => {
       mysteryGateUnlocked: false,
       newAreaUnlocked: false,
       starsEarned: 0,
+      // Nothing done yet, so no island grown from behaviour.
+      growthMix: { study: 0, school: 0, life: 0, total: 0 },
     });
   });
 

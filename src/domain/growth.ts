@@ -6,6 +6,7 @@ import {
   MAX_TOTAL_ENERGY,
   TOTAL_DAYS,
 } from "./constants";
+import { EMPTY_MIX, type GrowthMix } from "./growth-mix";
 import { energyToNextPetState, getPetState, PET_STATE_LABELS } from "./pet";
 import { energyToNextPlantState, getPlantState, PLANT_STATE_LABELS } from "./plant";
 import type { GrowthState } from "./types";
@@ -26,6 +27,7 @@ export function getGrowthState(
   totalEnergy: number,
   todayEnergy: number,
   activeDays = 0,
+  growthMix: GrowthMix = EMPTY_MIX,
 ): GrowthState {
   return {
     currentDay: clampDay(day),
@@ -33,7 +35,7 @@ export function getGrowthState(
     todayEnergy: Math.max(0, todayEnergy),
     petState: getPetState(day, totalEnergy, todayEnergy),
     plantState: getPlantState(day, totalEnergy, todayEnergy),
-    worldState: getWorldState(day, totalEnergy, todayEnergy, activeDays),
+    worldState: getWorldState(day, totalEnergy, todayEnergy, activeDays, growthMix),
   };
 }
 

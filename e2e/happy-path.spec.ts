@@ -776,3 +776,64 @@ test("解锁新主题的那一刻会在奖励里说出来", async ({ page }) => 
   await skipRewardToNext(page);
   await expect(page.getByTestId("theme-unlock-note")).toContainText("星空");
 });
+
+test("岛的样子由孩子做过的事长出来，而不是由分数", async ({ page }) => {
+  // The point of this axis: two children with the same energy can see different
+  // islands, because they did different things. The world used to change only
+  // with the calendar, so "my behaviour changed the world" was never really
+  // tested (research evaluation §4).
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // Nothing done yet: no grove, and the caption says what is coming rather than
+  // claiming a tree came from work nobody has done.
+  await page.goto("/");
+  await expect(page.getByTestId("grove")).toHaveCount(0);
+  await expect(page.getByTestId("world-grown-from")).toContainText("会慢慢长成");
+
+  // Two study goals grow one tree.
+  const goals = await selectGoals(page, [DAILY_GOALS[0], DAILY_GOALS[1]]);
+  expect(goals).toHaveLength(2);
+  // Two deliberate over the same day. Between them the reward overlay's own
+  // button lands on the home screen, so the helper returns to the task list.
+  await completeGoal(page, DAILY_GOALS[0]);
+  await completeGoal(page, DAILY_GOALS[1]);
+  await page.goto("/");
+  await expect(page.getByTestId("grove")).toHaveAttribute("data-trees", "1");
+  await expect(page.getByTestId("grove")).toHaveAttribute("data-bushes", "0");
+  await expect(page.getByTestId("world-grown-from")).toContainText("学习");
+});
+
+test("同样多的目标、不同做法 → 不同的岛", async ({ page }) => {
+  // Same number of completed goals, different mix. This is the assertion that
+  // makes the axis worth having: energy alone could not tell these apart.
+  await resetApp(page);
+  await completeFirstRun(page);
+
+  // Two study goals (math + chinese).
+  await selectGoals(page, [DAILY_GOALS[0], DAILY_GOALS[1]]);
+  await completeGoal(page, DAILY_GOALS[0]);
+  await completeGoal(page, DAILY_GOALS[1]);
+  await page.goto("/");
+  const studyTrees = await page.getByTestId("grove").getAttribute("data-trees");
+  const studyBushes = await page.getByTestId("grove").getAttribute("data-bushes");
+  const energy = await page.getByTestId("today-energy").textContent();
+
+  // Now the same number of goals, but from the other parts of the day.
+  await resetApp(page);
+  await completeFirstRun(page);
+  await selectGoals(page, ["exercise", "helping"]);
+  await completeGoal(page, "exercise");
+  await completeGoal(page, "helping");
+  await page.goto("/");
+  const lifeTrees = await page.getByTestId("grove").getAttribute("data-trees");
+  const lifeBushes = await page.getByTestId("grove").getAttribute("data-bushes");
+  const lifeEnergy = await page.getByTestId("today-energy").textContent();
+
+  // Same score...
+  expect(lifeEnergy).toBe(energy);
+  // ...different island.
+  expect(Number(studyTrees)).toBeGreaterThan(Number(lifeTrees));
+  expect(Number(lifeBushes)).toBeGreaterThan(Number(studyBushes));
+  await expect(page.getByTestId("world-grown-from")).toContainText("花丛");
+});

@@ -30,6 +30,13 @@ export async function selectGoals(page: Page, templateIds: string[]) {
   }
   await page.getByTestId("goal-start").click();
   await expect(page.getByTestId("goals-tasks")).toBeVisible();
+  // The ids the store generated, so callers can complete them without guessing.
+  return page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    const state = raw ? JSON.parse(raw).state : null;
+    const day = state?.currentDay ?? 1;
+    return (state?.goalsByDay?.[day] ?? []).map((g: { id: string }) => g.id);
+  }, STORAGE_KEY);
 }
 
 /** The three goals used throughout the happy path. */

@@ -6,6 +6,7 @@ import { initAnalytics } from "@/analytics/client";
 import { getParticipantId } from "@/analytics/participant";
 import { ENERGY_PER_GOAL, MAX_TOTAL_ENERGY } from "@/domain/constants";
 import { energyFromCompletedGoals, getGrowthState } from "@/domain/growth";
+import { computeGrowthMix } from "@/domain/growth-mix";
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import type { DailyGoal, GrowthState } from "@/domain/types";
 import {
@@ -133,16 +134,18 @@ export function useGrowth(): GrowthState {
   const totalEnergy = useTotalEnergy();
   const todayEnergy = useTodayEnergy();
   // Selected rather than derived from energy: the star garden counts days that
-  // had an action, and two different goal layouts can share a total energy.
+  // had an action and the grove counts *what* was done, so two different goal
+  // layouts can share a total energy and still look different.
   const goalsByDay = usePrototypeStore((s) => s.goalsByDay);
   const activeDays = useMemo(
     () =>
       Object.values(goalsByDay).filter((goals) => goals.some((g) => g.completed)).length,
     [goalsByDay],
   );
+  const growthMix = useMemo(() => computeGrowthMix(goalsByDay), [goalsByDay]);
   return useMemo(
-    () => getGrowthState(currentDay, totalEnergy, todayEnergy, activeDays),
-    [currentDay, totalEnergy, todayEnergy, activeDays],
+    () => getGrowthState(currentDay, totalEnergy, todayEnergy, activeDays, growthMix),
+    [currentDay, totalEnergy, todayEnergy, activeDays, growthMix],
   );
 }
 
