@@ -39,6 +39,7 @@ import {
   energyFromCompletedGoals,
   getGrowthState,
 } from "@/domain/growth";
+import { computeGrowthMix, type GrowthMix } from "@/domain/growth-mix";
 import { getNextMilestone, type NextMilestone } from "@/domain/milestone";
 import { describeRewardChange, detectDayMilestone } from "@/domain/reward";
 import type {
@@ -252,12 +253,23 @@ export function selectWorldTheme(state: PrototypeStoreState): WorldThemeId {
   return resolveWorldTheme(state.profile.worldTheme);
 }
 
+/**
+ * What the child has been doing, by part of the day.
+ *
+ * Derived from the goal history rather than stored, for the same reason stars
+ * are: a counter that can drift from the goals it counts is a bug waiting.
+ */
+export function selectGrowthMix(state: PrototypeStoreState): GrowthMix {
+  return computeGrowthMix(state.goalsByDay);
+}
+
 export function selectGrowth(state: PrototypeStoreState) {
   return getGrowthState(
     state.currentDay,
     selectTotalEnergy(state),
     selectTodayEnergy(state),
     selectActiveDays(state),
+    selectGrowthMix(state),
   );
 }
 

@@ -470,6 +470,96 @@ function starPath(cx: number, cy: number, outer: number, inner: number): string 
   return `M${points.join(" L")} Z`;
 }
 
+/**
+ * The grove: scenery that grows out of what the child actually did.
+ *
+ * One tree per two study goals, one bush per two life goals, one stepping stone
+ * per two school goals. This is the answer to the evaluation's structural
+ * complaint (§4) — that every Day 1–6 change used to be calendar-driven, so
+ * "behaviour changes the world" was never really tested. The star garden answers
+ * "I showed up"; this answers "what I did shows".
+ *
+ * Coarse on purpose: one tree per goal would be a bar chart. It is meant to read
+ * as a place, so it grows slowly and caps out well before the frame fills up.
+ *
+ * Like every other sprite, the colours come from the palette, so a world theme
+ * recolours the grove with everything else.
+ */
+export function Grove({
+  trees,
+  bushes,
+  stones,
+}: {
+  trees: number;
+  bushes: number;
+  stones: number;
+}) {
+  const C = useWorldColors();
+  if (trees + bushes + stones === 0) return null;
+
+  // Fixed positions, back row first, so the same history always draws the same
+  // island: a child who returns sees the place they left.
+  /*
+   * Along the left edge, on purpose: the island's centre belongs to the plant
+   * and the pet, and a grove behind them would compete with the child's own
+   * progress. Here it reads as the edge of the island — land this week's work
+   * has added — without ever covering the story.
+   *
+   * The first version was drawn at a third of this size and read as noise
+   * rather than as trees; a grove has to look like something to be noticed.
+   */
+  const treeSpots: Array<[number, number, number]> = [
+    [30, 254, 1.05],
+    [62, 250, 0.9],
+    [12, 250, 0.8],
+    [78, 258, 0.7],
+  ];
+  const bushSpots: Array<[number, number, number]> = [
+    [104, 266, 1],
+    [126, 272, 0.85],
+    [92, 276, 0.7],
+  ];
+  const stoneSpots: Array<[number, number, number]> = [
+    [176, 288, 1],
+    [198, 292, 0.9],
+    [156, 291, 0.8],
+  ];
+
+  return (
+    <g data-testid="grove" data-trees={trees} data-bushes={bushes} data-stones={stones}>
+      {treeSpots.slice(0, trees).map(([x, y, scale], i) => (
+        <g key={`t${i}`} transform={`translate(${x} ${y}) scale(${scale})`}>
+          <ellipse cx={0} cy={2} rx={16} ry={4} fill={C.shadow} opacity={0.07} />
+          <path
+            d="M0 2 L0 -16"
+            stroke={C.soilDeep}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+          <circle cx={0} cy={-24} r={15} fill={C.leafDeep} />
+          <circle cx={-9} cy={-18} r={10} fill={C.stem} />
+          <circle cx={9} cy={-19} r={9} fill={C.stemDeep} />
+        </g>
+      ))}
+      {bushSpots.slice(0, bushes).map(([x, y, scale], i) => (
+        <g key={`b${i}`} transform={`translate(${x} ${y}) scale(${scale})`}>
+          <ellipse cx={0} cy={2} rx={12} ry={3} fill={C.shadow} opacity={0.07} />
+          <circle cx={0} cy={-6} r={9} fill={C.leafPale} />
+          <circle cx={-7} cy={-3} r={7} fill={C.stem} />
+          <circle cx={7} cy={-3} r={6} fill={C.leafDeep} />
+          <circle cx={0} cy={-12} r={2.4} fill={C.blossom} />
+        </g>
+      ))}
+      {stoneSpots.slice(0, stones).map(([x, y, scale], i) => (
+        <g key={`s${i}`} transform={`translate(${x} ${y}) scale(${scale})`}>
+          <ellipse cx={0} cy={1} rx={9} ry={3.5} fill={C.rockDark} />
+          <ellipse cx={-1} cy={-1} rx={7} ry={3} fill={C.rock} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 export function sceneFlags(world: WorldState) {
   return {
     flower: world.flowerUnlocked,

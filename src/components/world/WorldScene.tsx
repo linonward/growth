@@ -7,6 +7,7 @@ import {
   Clouds,
   Flowers,
   Ground,
+  Grove,
   MysteryGate,
   NewArea,
   Rock,
@@ -14,6 +15,7 @@ import {
   Sun,
 } from "@/components/world/sprites/Scenery";
 import { useWorldColors } from "@/components/world/ThemeProvider";
+import { groveBushes, groveStones, groveTrees } from "@/domain/growth-mix";
 import type { PetSpecies, PetState, PlantState, WorldState } from "@/domain/types";
 
 /** Scene coordinate layout. Exported so the page can place tap targets on top. */
@@ -123,6 +125,16 @@ export function WorldScene({
 
         {/* Scenery */}
         {worldState.rockUnlocked ? <Rock /> : null}
+        {/*
+          Grown from what the child actually did, not from the calendar: the
+          island's shape is the one thing on screen that two children with the
+          same score can differ in.
+        */}
+        <Grove
+          trees={groveTrees(worldState.growthMix)}
+          bushes={groveBushes(worldState.growthMix)}
+          stones={groveStones(worldState.growthMix)}
+        />
         {/* Behaviour-driven: one star per day the student actually did something */}
         {worldState.starsEarned > 0 ? (
           <StarGarden earned={worldState.starsEarned} />
